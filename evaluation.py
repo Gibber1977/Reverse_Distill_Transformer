@@ -49,9 +49,14 @@ def evaluate_predictions(Y_true_test, Y_pred_test, scaler, target_col_index, mod
     plt.grid(True)
     
     # Save the plot
+    import os 
+    results_folder = 'results' # Create a folder for results if it doesn't exist
+    if not os.path.exists(results_folder):
+        os.makedirs(results_folder)
     plot_filename = f"{model_name.lower().replace(' ', '_')}_prediction_vs_actual.png"
-    plt.savefig(plot_filename)
-    print(f"Saved prediction plot to {plot_filename}")
+    plot_path = os.path.join(results_folder, plot_filename)
+    plt.savefig(plot_path)
+    print(f"Saved prediction plot to {plot_path}")
     plt.close()
     
     return avg_mse, avg_mae
