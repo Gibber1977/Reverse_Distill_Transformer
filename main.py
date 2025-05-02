@@ -251,19 +251,45 @@ def main(args):
             print(f"{key}: {value}")
     print("---------------------------")
 
-    # --- 创建结果目录 ---
-    os.makedirs(cfg.RESULTS_DIR, exist_ok=True)
-    os.makedirs(cfg.METRICS_DIR, exist_ok=True)
-    os.makedirs(cfg.MODELS_DIR, exist_ok=True)
-    os.makedirs(cfg.PLOTS_DIR, exist_ok=True)
+    # --- <<< 创建动态实验结果目录 >>> ---
+    start_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    try:
+        # 尝试从完整路径中提取数据集文件名（不含扩展名）
+        dataset_name = os.path.splitext(os.path.basename(cfg.DATASET_PATH))[0]
+    except Exception:
+        dataset_name = "unknown_dataset" # 如果提取失败，使用默认名称
+        print(f"Warning: Could not extract dataset name from path '{cfg.DATASET_PATH}'. Using '{dataset_name}'.")
+    experiment_dir = os.path.join(
+        cfg.RESULTS_DIR, # 使用 config.py 中定义的基础结果目录
+        f"{dataset_name}_{cfg.TEACHER_MODEL_NAME}_{cfg.STUDENT_MODEL_NAME}_{start_timestamp}"
+    )
+    # 创建实验主目录和子目录
+    metrics_dir = os.path.join(experiment_dir, 'metrics')
+    models_dir = os.path.join(experiment_dir, 'models')
+    plots_dir = os.path.join(experiment_dir, 'plots')
+    os.makedirs(metrics_dir, exist_ok=True)
+    os.makedirs(models_dir, exist_ok=True)
+    os.makedirs(plots_dir, exist_ok=True)
+    print(f"--- Experiment results will be saved to: {experiment_dir} ---")
 
     all_run_results = []
     start_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     experiment_log_name = f"{cfg.EXPERIMENT_NAME}_{start_timestamp}.csv"
+    main_results_filename = f"all_runs_summary_{start_timestamp}.csv" # 主结果文件名
+    
+    # 检查 CUDA 是否可用
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+        print(f"当前设备: {device}")
+        print(f"使用的 CUDA 设备编号: {torch.cuda.current_device()}")
+        print(f"CUDA 设备名称: {torch.cuda.get_device_name(device)}")
+    else:
+        device = torch.device("cpu")
+        print(f"当前设备: {device}")
 
     # --- 运行多次实验以评估稳定性 ---
     for i in range(cfg.STABILITY_RUNS):
-        results = run_single_experiment(cfg, run_id=i)
+        results = run_single_experiment(cfg, models_dir, plots_dir, metrics_dir, run_id=i)
         if results:
             all_run_results.append(results)
         else:
@@ -297,7 +323,7 @@ def main(args):
              stability_summary = results_df[metric_cols_to_summarize].agg(['mean', 'std'])
              print("--- Stability Summary (Mean & Std) ---")
              print(stability_summary)
-             summary_save_path = os.path.join(cfg.METRICS_DIR, f"{cfg.EXPERIMENT_NAME}_stability_summary_{start_timestamp}.csv")
+             summary_save_path = os.path.join(metrics_dir, f"stability_summary_{start_timestamp}.csv")
              stability_summary.to_csv(summary_save_path)
              print(f"Stability summary saved to {summary_save_path}")
 
@@ -306,7 +332,7 @@ def main(args):
                  print("\n--- Generating Stability Comparison Plots ---")
                  for metric in cfg.METRICS:
                      # <<< 调用 plot_stability_comparison >>>
-                     stability_plot_save_path = os.path.join(cfg.PLOTS_DIR, f"comparison_stability_{metric}_{start_timestamp}.png")
+                     stability_plot_save_path = os.path.join(plots_dir, f"comparison_stability_{metric}_{start_timestamp}.png")
                      utils.plot_stability_comparison(
                          results_df,
                          metric_to_plot=metric, # 指标名称 (mae, mse)
@@ -321,7 +347,7 @@ def main(args):
 
 
     # --- 保存所有运行的详细结果 ---
-    all_results_save_path = os.path.join(cfg.METRICS_DIR, experiment_log_name)
+    all_results_save_path = os.path.join(metrics_dir, main_results_filename)
     results_df.to_csv(all_results_save_path, index=False)
     print(f"\nAll run results saved to {all_results_save_path}")
 

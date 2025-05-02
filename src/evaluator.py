@@ -56,7 +56,7 @@ def predict(model, dataloader, device):
     true_values = torch.cat(all_trues, dim=0)
     return true_values, predictions # 返回 torch tensors
 
-def evaluate_model(model, dataloader, device, scaler, model_name="Model"):
+def evaluate_model(model, dataloader, device, scaler, model_name="Model", plots_dir="."):
     """在测试集上评估模型性能"""
     print(f"\n--- Evaluating {model_name} on Test Set ---")
     true_values_scaled, predictions_scaled = predict(model, dataloader, device)
@@ -93,7 +93,7 @@ def evaluate_model(model, dataloader, device, scaler, model_name="Model"):
     # np.save(os.path.join(config.RESULTS_DIR, f"{model_name}_trues.npy"), true_values_original)
 
     # --- 绘制预测图 (只绘制第一个特征) ---
-    plot_save_path = os.path.join(config.PLOTS_DIR, f"{model_name}_test_predictions.png")
+    plot_save_path = os.path.join(plots_dir, f"{model_name}_test_predictions.png")
     utils.plot_predictions(true_values_original, predictions_original,
                            title=f"{model_name} - Test Set Predictions vs True Values",
                            save_path=plot_save_path, series_idx=0)
@@ -101,7 +101,7 @@ def evaluate_model(model, dataloader, device, scaler, model_name="Model"):
     return metrics, true_values_original, predictions_original
 
 
-def evaluate_robustness(model, dataloader, device, scaler, noise_levels, model_name="Model"):
+def evaluate_robustness(model, dataloader, device, scaler, noise_levels, model_name="Model", metrics_dir="."):
     """评估模型在不同噪声水平下的鲁棒性"""
     print(f"\n--- Evaluating Robustness for {model_name} ---")
     robustness_results = {}
@@ -173,7 +173,7 @@ def evaluate_robustness(model, dataloader, device, scaler, noise_levels, model_n
     # --- DataFrame creation and saving (on CPU) ---
     df_robustness = pd.DataFrame(robustness_results).T # 转置使噪声水平为行
     df_robustness.index.name = 'Noise Level (std ratio)'
-    save_path = os.path.join(config.METRICS_DIR, f"{model_name}_robustness.csv")
+    save_path = os.path.join(metrics_dir, f"{model_name}_robustness.csv")
     df_robustness.to_csv(save_path)
     print(f"Robustness results saved to {save_path}")
 
