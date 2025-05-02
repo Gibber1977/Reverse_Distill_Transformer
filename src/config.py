@@ -5,9 +5,9 @@ import os
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # 获取项目根目录 rdt_framework/
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 RESULTS_DIR = os.path.join(BASE_DIR, 'results')
-METRICS_DIR = os.path.join(RESULTS_DIR, 'metrics')
-MODELS_DIR = os.path.join(RESULTS_DIR, 'models')
-PLOTS_DIR = os.path.join(RESULTS_DIR, 'plots')
+# METRICS_DIR = os.path.join(RESULTS_DIR, 'metrics')
+# MODELS_DIR = os.path.join(RESULTS_DIR, 'models')
+# PLOTS_DIR = os.path.join(RESULTS_DIR, 'plots')
 
 # --- 数据集配置 ---
 DATASET_PATH = os.path.join(DATA_DIR, 'weatherHistory.csv')
@@ -21,7 +21,7 @@ LOOKBACK_WINDOW = 96     # 回看窗口大小 (e.g., 4 days for hourly data)
 PREDICTION_HORIZON = 96   # 预测未来步长 (e.g., 1 day for hourly data)
 VAL_SPLIT_RATIO = 0.2     # 验证集比例 (从训练集中划分)
 TEST_SPLIT_RATIO = 0.2    # 测试集比例 (从总数据末尾划分)
-BATCH_SIZE = 128         # 批次大小 (根据 GPU 内存调整)
+BATCH_SIZE = 256         # 批次大小 (根据 GPU 内存调整)
 NUM_WORKERS = 0           # DataLoader 的工作进程数 (Windows 设为 0 可能更稳定)
 
 # --- 模型配置 ---
@@ -77,10 +77,10 @@ STABILITY_RUNS = 10      # 运行多次以评估稳定性 (设为 1 则不进行
 SEED = 42               # 随机种子，用于可复现性
 EXPERIMENT_NAME = f"RDT_{STUDENT_MODEL_NAME}_vs_{TEACHER_MODEL_NAME}_h{PREDICTION_HORIZON}"
 
-# --- 创建结果目录 ---
-os.makedirs(METRICS_DIR, exist_ok=True)
-os.makedirs(MODELS_DIR, exist_ok=True)
-os.makedirs(PLOTS_DIR, exist_ok=True)
+# # --- 创建结果目录 ---
+# os.makedirs(METRICS_DIR, exist_ok=True)
+# os.makedirs(MODELS_DIR, exist_ok=True)
+# os.makedirs(PLOTS_DIR, exist_ok=True)
 
 # --- 动态更新模型配置中的 n_series ---
 TEACHER_CONFIG['n_series'] = len(TARGET_COLS)
