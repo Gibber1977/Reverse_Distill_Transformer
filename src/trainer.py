@@ -138,6 +138,9 @@ class StandardTrainer(BaseTrainer):
             self.optimizer.zero_grad()
 
             input_dict = {'insample_y': batch_x}
+            # Add futr_exog=None for models that might expect it (e.g., Autoformer, Informer, FEDformer)
+            # neuralforecast models generally handle None gracefully if the feature is not used.
+            input_dict['futr_exog'] = None
             outputs = self.model(input_dict) # [batch, horizon, features]
 
             loss = self.loss_fn(outputs, batch_y)
@@ -158,8 +161,10 @@ class StandardTrainer(BaseTrainer):
                 batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
                 
                 input_dict = {'insample_y': batch_x}
+                # Add futr_exog=None for models that might expect it
+                input_dict['futr_exog'] = None
                 outputs = self.model(input_dict)
-
+    
                 loss = self.loss_fn(outputs, batch_y)
                 total_loss += loss.item()
                 val_iterator.set_postfix(loss=loss.item())
@@ -194,11 +199,15 @@ class RDT_Trainer(BaseTrainer):
             # 1. 教师模型预测 (不计算梯度)
             with torch.no_grad():
                 input_dict_teacher = {'insample_y': batch_x}
+                # Add futr_exog=None for models that might expect it
+                input_dict_teacher['futr_exog'] = None
                 batch_y_teacher = self.teacher_model(input_dict_teacher)
 
             # 2. 学生模型预测
             self.optimizer.zero_grad()
             input_dict_student = {'insample_y': batch_x}
+            # Add futr_exog=None for models that might expect it
+            input_dict_student['futr_exog'] = None
             batch_y_student = self.model(input_dict_student) # self.model is student
 
             # 3. 计算损失
@@ -235,8 +244,10 @@ class RDT_Trainer(BaseTrainer):
                 batch_x, batch_y_true = batch_x.to(self.device), batch_y_true.to(self.device)
                 
                 input_dict = {'insample_y': batch_x}
+                # Add futr_exog=None for models that might expect it
+                input_dict['futr_exog'] = None
                 batch_y_student = self.model(input_dict)
-                
+
                 loss_task = self.loss_fn(batch_y_student, batch_y_true) # 只计算 Task Loss
                 total_task_loss += loss_task.item()
                 val_iterator.set_postfix(val_task_loss=loss_task.item())
