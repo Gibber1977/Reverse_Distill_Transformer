@@ -246,4 +246,5 @@ SOFTWARE.
 
 * 感谢 PyTorch 社区提供的深度学习框架。
 * 感谢 `neuralforecast` 库提供了多种时间序列模型实现。
+* 数据来源：[Autoformer - Google 云端硬盘](https://drive.google.com/drive/folders/1ZOYpTUa82_jCcxIdTmyr0LXQfvaM9vIy)
 
