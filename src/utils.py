@@ -283,3 +283,112 @@ def plot_stability_comparison(results_df, metric_to_plot, title, save_path, plot
     plt.savefig(save_path)
     plt.close()
     print(f"Stability comparison plot for {metric_to_plot} saved to {save_path}")
+def plot_full_dataset_predictions(data_dict, title, save_path, series_idx=0, max_points_per_set=500):
+    """
+    绘制训练集、验证集、测试集的真实值与多个模型预测值的对比图。
+
+    Args:
+        data_dict (dict): 包含数据集信息的字典。结构如下:
+            {
+                'train': {'true': np.ndarray, 'predictions': {'ModelA': np.ndarray, 'ModelB': np.ndarray}},
+                'val':   {'true': np.ndarray, 'predictions': {'ModelA': np.ndarray, 'ModelB': np.ndarray}},
+                'test':  {'true': np.ndarray, 'predictions': {'ModelA': np.ndarray, 'ModelB': np.ndarray}}
+            }
+            其中 np.ndarray 的形状通常是 [num_samples, horizon, features]。
+            如果某个数据集或模型的预测不存在，可以省略对应的键或值为 None。
+        title (str): 图表标题。
+        save_path (str): 图表保存路径。
+        series_idx (int): 要绘制的目标序列的索引。
+        max_points_per_set (int): 每个数据集（训练/验证/测试）最多绘制的点数。
+    """
+    plt.figure(figsize=(20, 10)) # 更大的画布
+    colors = plt.cm.tab10(np.linspace(0, 1, 10)) # 预定义颜色
+    model_styles = {name: ('--', colors[i % len(colors)], 0.7) for i, name in enumerate(
+        data_dict.get('test', {}).get('predictions', {}).keys() # 基于测试集的模型列表确定样式
+    )}
+    set_colors = {'train': 'lightblue', 'val': 'lightgreen', 'test': 'lightcoral'}
+    set_markers = {'train': '.', 'val': '.', 'test': '.'}
+    set_true_styles = {'train': ('-', 'blue', 1.0), 'val': ('-', 'green', 1.0), 'test': ('-', 'red', 1.0)}
+
+    current_offset = 0
+    set_boundaries = {} # 记录每个数据集的结束位置
+
+    target_col_name = config.TARGET_COLS[series_idx] if series_idx < len(config.TARGET_COLS) else f"Series {series_idx}"
+    full_title = f"{title} - {target_col_name}"
+    plt.title(full_title, fontsize=16)
+
+    for set_name in ['train', 'val', 'test']:
+        set_data = data_dict.get(set_name)
+        if not set_data or set_data.get('true') is None:
+            print(f"Info: No data found for '{set_name}' set. Skipping.")
+            continue
+
+        y_true = set_data['true']
+        predictions = set_data.get('predictions', {})
+
+        # --- 数据处理 ---
+        if y_true.ndim != 3:
+            print(f"Warning: True values for '{set_name}' have unexpected dimensions: {y_true.ndim}")
+            continue
+        try:
+            y_true_flat = y_true[:, :, series_idx].reshape(-1)
+        except IndexError:
+            print(f"Error: series_idx {series_idx} is out of bounds for '{set_name}' true values features ({y_true.shape[-1]})")
+            continue
+
+        plot_len = min(max_points_per_set, len(y_true_flat))
+        time_steps = np.arange(current_offset, current_offset + plot_len)
+
+        # --- 绘制真实值 ---
+        true_style = set_true_styles[set_name]
+        plt.plot(time_steps, y_true_flat[:plot_len],
+                 label=f'{set_name.capitalize()} True',
+                 color=true_style[1], linestyle=true_style[0], linewidth=1.5, alpha=true_style[2],
+                 marker=set_markers[set_name], markersize=3)
+
+        # --- 绘制预测值 ---
+        for model_name, y_pred in predictions.items():
+            if y_pred is None: continue
+            if y_pred.ndim != 3:
+                print(f"Warning: Predictions for model '{model_name}' in '{set_name}' have unexpected dimensions: {y_pred.ndim}")
+                continue
+            try:
+                y_pred_flat = y_pred[:, :, series_idx].reshape(-1)
+                if len(y_pred_flat) != len(y_true_flat):
+                     print(f"Warning: Length mismatch for '{model_name}' in '{set_name}' set.")
+                     continue
+
+                style = model_styles.get(model_name, ('--', 'gray', 0.6)) # 获取模型样式
+                # 只为第一个数据集添加模型标签，避免图例重复
+                label = f'{model_name} Preds' if set_name == 'train' else None
+                plt.plot(time_steps, y_pred_flat[:plot_len],
+                         label=label,
+                         color=style[1], linestyle=style[0], alpha=style[2])
+            except IndexError:
+                print(f"Error: series_idx {series_idx} is out of bounds for '{model_name}' predictions in '{set_name}' ({y_pred.shape[-1]})")
+            except Exception as e:
+                 print(f"Error plotting predictions for {model_name} in {set_name}: {e}")
+
+        current_offset += plot_len
+        set_boundaries[set_name] = current_offset # 记录结束点
+
+    # --- 添加数据集分割线和标签 ---
+    last_boundary = 0
+    for set_name, boundary in set_boundaries.items():
+        if boundary > last_boundary: # 只有当该数据集被绘制时才添加
+             plt.axvline(x=boundary, color='grey', linestyle=':', linewidth=1)
+             # 在区域中间添加文本标签
+             text_x = (last_boundary + boundary) / 2
+             plt.text(text_x, plt.ylim()[1] * 0.95, set_name.upper(),
+                      ha='center', va='top', backgroundcolor='white', alpha=0.8, fontsize=10)
+             last_boundary = boundary
+
+
+    plt.xlabel('Time Steps (Concatenated Train, Val, Test)', fontsize=12)
+    plt.ylabel('Value', fontsize=12)
+    plt.legend(fontsize=10, loc='upper left', bbox_to_anchor=(1, 1)) # 图例放在外面
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.tight_layout(rect=[0, 0, 0.85, 1]) # 调整布局为图例腾出空间
+    plt.savefig(save_path)
+    plt.close()
+    print(f"Full dataset prediction plot saved to {save_path}")

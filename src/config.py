@@ -10,11 +10,11 @@ RESULTS_DIR = os.path.join(BASE_DIR, 'results')
 # PLOTS_DIR = os.path.join(RESULTS_DIR, 'plots')
 
 # --- 数据集配置 ---
-DATASET_PATH = os.path.join(DATA_DIR, 'weatherHistory.csv')
-DATE_COL = 'Formatted Date'         # 日期/时间列名
-TARGET_COLS = ['Temperature (C)']   # 需要预测的目标列（可以是多个）
+DATASET_PATH = os.path.join(DATA_DIR, 'exchange_rate.csv')
+DATE_COL = 'date'         # 日期/时间列名
+TARGET_COLS = ['OT']   # 需要预测的目标列（可以是多个）
 # TARGET_COLS = ['Temperature (C)', 'Humidity'] # 示例：多变量预测
-TIME_FREQ = 'H'                     # 时间序列频率 ('H' for hourly) - 需要根据你的数据调整
+TIME_FREQ = 'D'                     # 时间序列频率 ('H' for hourly) - 需要根据你的数据调整
 
 # --- 数据处理配置 ---
 LOOKBACK_WINDOW = 96     # 回看窗口大小 (e.g., 4 days for hourly data)
@@ -54,7 +54,7 @@ STUDENT_CONFIG = {
 
 # --- 训练配置 ---
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
-EPOCHS = 100              # 最大训练轮数
+EPOCHS = 50              # 最大训练轮数
 LEARNING_RATE = 0.001
 OPTIMIZER = 'Adam'      # 可选 'AdamW', 'SGD' 等
 WEIGHT_DECAY = 1e-5     # L2 正则化 (用于 AdamW)

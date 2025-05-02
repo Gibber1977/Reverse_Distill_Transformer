@@ -14,10 +14,10 @@ from src.data_handler import load_and_preprocess_data
 from src.models import get_teacher_model, get_student_model
 from src.trainer import StandardTrainer, RDT_Trainer, get_optimizer, get_loss_function
 from src.schedulers import get_alpha_scheduler, ConstantScheduler # 明确导入 ConstantScheduler
-from src.evaluator import evaluate_model, evaluate_robustness, calculate_metrics
+from src.evaluator import evaluate_model, evaluate_robustness, calculate_metrics, predict # <<< 导入 predict 函数
 
 
-def run_single_experiment(cfg, run_id=0):
+def run_single_experiment(cfg, run_id, models_dir, plots_dir, metrics_dir): # <<< 接收动态路径
     """运行单次完整的实验流程（用于稳定性评估）"""
     print(f"\n===== Starting Experiment Run {run_id + 1} / {cfg.STABILITY_RUNS} with Seed {cfg.SEED + run_id} =====")
     current_seed = cfg.SEED + run_id
@@ -25,6 +25,12 @@ def run_single_experiment(cfg, run_id=0):
 
     run_results = {'run_id': run_id, 'seed': current_seed}
     model_paths = {} # 存储本次运行的模型路径
+
+    # --- 创建本次运行的子目录 ---
+    plots_run_dir = os.path.join(plots_dir, f'run_{run_id}')
+    metrics_run_dir = os.path.join(metrics_dir, f'run_{run_id}')
+    os.makedirs(plots_run_dir, exist_ok=True)
+    os.makedirs(metrics_run_dir, exist_ok=True)
 
     # --- 1. 数据加载与预处理 ---
     try:
@@ -43,7 +49,7 @@ def run_single_experiment(cfg, run_id=0):
     # --- 3. 训练教师模型 (Standard Training) ---
     print("\n--- Training Teacher Model ---")
     teacher_optimizer = get_optimizer(teacher_model, cfg)
-    teacher_model_save_path = os.path.join(cfg.MODELS_DIR, f"teacher_{cfg.TEACHER_MODEL_NAME}_run{run_id}_seed{current_seed}.pt")
+    teacher_model_save_path = os.path.join(models_dir, f"teacher_{cfg.TEACHER_MODEL_NAME}_run{run_id}_seed{current_seed}.pt") # <<< 使用 models_dir
     model_paths['teacher'] = teacher_model_save_path
     teacher_trainer = StandardTrainer(
         model=teacher_model,
@@ -60,13 +66,13 @@ def run_single_experiment(cfg, run_id=0):
     trained_teacher_model, teacher_history = teacher_trainer.train()
     utils.plot_losses(teacher_history['train_loss'], teacher_history['val_loss'],
                       title=f"Teacher ({cfg.TEACHER_MODEL_NAME}) Training Loss (Run {run_id})",
-                      save_path=os.path.join(cfg.PLOTS_DIR, f"teacher_loss_run{run_id}.png"))
+                      save_path=os.path.join(plots_run_dir, f"teacher_loss.png")) # <<< 使用 plots_run_dir
 
     # --- 4. 训练基线学生模型 (Standard Training, Alpha=1.0 Task Only) ---
     print("\n--- Training Baseline Student Model (Task Only, Alpha=1.0) ---")
     student_task_only_model = get_student_model(cfg)
     student_task_only_optimizer = get_optimizer(student_task_only_model, cfg)
-    student_task_only_save_path = os.path.join(cfg.MODELS_DIR, f"student_{cfg.STUDENT_MODEL_NAME}_task_only_run{run_id}_seed{current_seed}.pt")
+    student_task_only_save_path = os.path.join(models_dir, f"student_{cfg.STUDENT_MODEL_NAME}_task_only_run{run_id}_seed{current_seed}.pt") # <<< 使用 models_dir
     model_paths['student_task_only'] = student_task_only_save_path
     student_task_only_trainer = StandardTrainer(
         model=student_task_only_model,
@@ -83,14 +89,14 @@ def run_single_experiment(cfg, run_id=0):
     trained_student_task_only_model, student_task_only_history = student_task_only_trainer.train()
     utils.plot_losses(student_task_only_history['train_loss'], student_task_only_history['val_loss'],
                       title=f"Student Task Only (Alpha=1.0) Training Loss (Run {run_id})",
-                      save_path=os.path.join(cfg.PLOTS_DIR, f"student_task_only_loss_run{run_id}.png"))
+                      save_path=os.path.join(plots_run_dir, f"student_task_only_loss.png")) # <<< 使用 plots_run_dir
 
     # --- 5. 训练 RDT 学生模型 ---
     print("\n--- Training RDT Student Model ---")
     student_rdt_model = get_student_model(cfg)
     student_rdt_optimizer = get_optimizer(student_rdt_model, cfg)
     alpha_scheduler = get_alpha_scheduler(cfg) # RDT 特有
-    student_rdt_save_path = os.path.join(cfg.MODELS_DIR, f"student_{cfg.STUDENT_MODEL_NAME}_rdt_run{run_id}_seed{current_seed}.pt")
+    student_rdt_save_path = os.path.join(models_dir, f"student_{cfg.STUDENT_MODEL_NAME}_rdt_run{run_id}_seed{current_seed}.pt") # <<< 使用 models_dir
     model_paths['student_rdt'] = student_rdt_save_path
     rdt_trainer = RDT_Trainer(
         student_model=student_rdt_model,
@@ -110,7 +116,7 @@ def run_single_experiment(cfg, run_id=0):
     trained_student_rdt_model, student_rdt_history = rdt_trainer.train()
     utils.plot_losses(student_rdt_history['train_loss'], student_rdt_history['val_loss'],
                       title=f"RDT Student Training Loss (Total Train, Task Val) (Run {run_id})",
-                      save_path=os.path.join(cfg.PLOTS_DIR, f"student_rdt_loss_run{run_id}.png"))
+                      save_path=os.path.join(plots_run_dir, f"student_rdt_loss.png")) # <<< 使用 plots_run_dir
     # (可选) 绘制 Alpha 变化图
     if 'alpha' in student_rdt_history and student_rdt_history['alpha']:
         plt.figure()
@@ -119,7 +125,7 @@ def run_single_experiment(cfg, run_id=0):
         plt.xlabel("Epoch")
         plt.ylabel("Alpha")
         plt.grid(True)
-        plt.savefig(os.path.join(cfg.PLOTS_DIR, f"student_rdt_alpha_run{run_id}.png"))
+        plt.savefig(os.path.join(plots_run_dir, f"student_rdt_alpha.png")) # <<< 使用 plots_run_dir
         plt.close()
 
     # --- 6. 训练追随者学生模型 (Follower, Alpha=0.0) ---
@@ -127,7 +133,7 @@ def run_single_experiment(cfg, run_id=0):
     student_follower_model = get_student_model(cfg)
     student_follower_optimizer = get_optimizer(student_follower_model, cfg)
     follower_alpha_scheduler = ConstantScheduler(alpha_value=0.0, total_epochs=cfg.EPOCHS)
-    student_follower_save_path = os.path.join(cfg.MODELS_DIR, f"student_{cfg.STUDENT_MODEL_NAME}_follower_run{run_id}_seed{current_seed}.pt")
+    student_follower_save_path = os.path.join(models_dir, f"student_{cfg.STUDENT_MODEL_NAME}_follower_run{run_id}_seed{current_seed}.pt") # <<< 使用 models_dir
     model_paths['student_follower'] = student_follower_save_path
     follower_trainer = RDT_Trainer( # 复用 RDT Trainer，但 Alpha 恒为 0
         student_model=student_follower_model,
@@ -147,7 +153,7 @@ def run_single_experiment(cfg, run_id=0):
     trained_student_follower_model, student_follower_history = follower_trainer.train()
     utils.plot_losses(student_follower_history['train_loss'], student_follower_history['val_loss'],
                        title=f"Follower Student Training Loss (Distill Train, Task Val) (Run {run_id})",
-                       save_path=os.path.join(cfg.PLOTS_DIR, f"student_follower_loss_run{run_id}.png"))
+                       save_path=os.path.join(plots_run_dir, f"student_follower_loss.png")) # <<< 使用 plots_run_dir
 
     # --- 7. 评估所有模型 ---
     models_to_evaluate = {
@@ -157,45 +163,125 @@ def run_single_experiment(cfg, run_id=0):
         "Student_Follower": trained_student_follower_model
     }
     all_metrics = {}
-    all_predictions = {}
+    # all_predictions = {} # Replaced by full_predictions_data
     all_robustness_dfs = {} # <<< 新增: 收集鲁棒性结果
-    true_values_original = None
+    # true_values_original = None # Replaced by full_predictions_data
 
-    print("\n--- Evaluating Models on Test Set ---")
+    # <<< Initialize structure for full dataset plotting >>>
+    full_predictions_data = {
+        'train': {'true': None, 'predictions': {}},
+        'val':   {'true': None, 'predictions': {}},
+        'test':  {'true': None, 'predictions': {}}
+    }
+    # <<< ------------------------------------------ >>>
+
+    print("\n--- Evaluating Models & Collecting Predictions ---")
+    # is_first_model = True # Flag to collect true values only once (handled by checking None)
+
     for name, model in models_to_evaluate.items():
-        print(f"Evaluating {name}...")
-        model_display_name = f"{name}_run{run_id}" # 为本次运行的模型添加标识
-        metrics, trues, preds = evaluate_model(model, test_loader, cfg.DEVICE, scaler, model_name=model_display_name)
+        print(f"Processing {name}...")
+        model_display_name = f"{name}_run{run_id}"
+
+        # --- Evaluate on Test Set (Existing Logic + Store for Full Plot) ---
+        print(f"  Evaluating {name} on Test Set...")
+        metrics, test_trues_original, test_preds_original = evaluate_model(
+            model, test_loader, cfg.DEVICE, scaler,
+            model_name=model_display_name, plots_dir=plots_run_dir
+        )
         all_metrics[name] = metrics # 存储本次运行的核心指标
-        all_predictions[name] = preds # 存储预测结果
-        if true_values_original is None:
-            true_values_original = trues # 只存储一次真实值
+        # Store test results for the full plot
+        if full_predictions_data['test']['true'] is None:
+             full_predictions_data['test']['true'] = test_trues_original
+        full_predictions_data['test']['predictions'][name] = test_preds_original
+
+
+        # --- Predict on Train Set ---
+        print(f"  Predicting {name} on Train Set...")
+        train_trues_scaled, train_preds_scaled = predict(model, train_loader, cfg.DEVICE)
+        # Inverse transform train predictions
+        train_preds_original = None
+        train_trues_original = None # Initialize to None
+        if train_preds_scaled is not None and train_trues_scaled is not None:
+            try:
+                n_samples_tr, horizon_tr, n_features_tr = train_preds_scaled.shape
+                pred_reshaped_tr = train_preds_scaled.view(-1, n_features_tr).numpy()
+                true_reshaped_tr = train_trues_scaled.view(-1, n_features_tr).numpy()
+                train_preds_original = scaler.inverse_transform(pred_reshaped_tr).reshape(n_samples_tr, horizon_tr, n_features_tr)
+                train_trues_original = scaler.inverse_transform(true_reshaped_tr).reshape(n_samples_tr, horizon_tr, n_features_tr)
+            except Exception as e:
+                print(f"Error inverse transforming train data for {name}: {e}. Skipping train plot data.")
+                # Keep them as None
+
+        if train_preds_original is not None:
+            if full_predictions_data['train']['true'] is None and train_trues_original is not None:
+                 full_predictions_data['train']['true'] = train_trues_original
+            full_predictions_data['train']['predictions'][name] = train_preds_original
+
+
+        # --- Predict on Validation Set ---
+        print(f"  Predicting {name} on Validation Set...")
+        val_trues_scaled, val_preds_scaled = predict(model, val_loader, cfg.DEVICE)
+        # Inverse transform validation predictions
+        val_preds_original = None
+        val_trues_original = None # Initialize to None
+        if val_preds_scaled is not None and val_trues_scaled is not None:
+            try:
+                n_samples_val, horizon_val, n_features_val = val_preds_scaled.shape
+                pred_reshaped_val = val_preds_scaled.view(-1, n_features_val).numpy()
+                true_reshaped_val = val_trues_scaled.view(-1, n_features_val).numpy()
+                val_preds_original = scaler.inverse_transform(pred_reshaped_val).reshape(n_samples_val, horizon_val, n_features_val)
+                val_trues_original = scaler.inverse_transform(true_reshaped_val).reshape(n_samples_val, horizon_val, n_features_val)
+            except Exception as e:
+                print(f"Error inverse transforming validation data for {name}: {e}. Skipping val plot data.")
+                # Keep them as None
+
+        if val_preds_original is not None:
+            if full_predictions_data['val']['true'] is None and val_trues_original is not None:
+                 full_predictions_data['val']['true'] = val_trues_original
+            full_predictions_data['val']['predictions'][name] = val_preds_original
 
         # --- (可选) 评估鲁棒性 ---
         if cfg.ROBUSTNESS_NOISE_LEVELS and len(cfg.ROBUSTNESS_NOISE_LEVELS) > 0:
              print(f"--- Evaluating Robustness for {name}_run{run_id} ---")
-             # <<< 修改: 接收并存储鲁棒性评估结果 DataFrame >>>
+             # <<< 修改: 接收并存储鲁棒性评估结果 DataFrame, 传递 metrics_run_dir >>>
              df_robustness = evaluate_robustness(model, test_loader, cfg.DEVICE, scaler,
-                                                 cfg.ROBUSTNESS_NOISE_LEVELS, model_name=f"{name}_run{run_id}")
+                                                 cfg.ROBUSTNESS_NOISE_LEVELS,
+                                                 model_name=f"{name}_run{run_id}", metrics_dir=metrics_run_dir)
              all_robustness_dfs[name] = df_robustness # <<< 存储DataFrame
+             # (可选) 如果需要将每次运行的鲁棒性结果保存为 CSV
+             # robustness_csv_path = os.path.join(metrics_run_dir, f"{name}_robustness.csv")
+             # df_robustness.to_csv(robustness_csv_path)
+             # print(f"Robustness results for {name} saved to {robustness_csv_path}")
              # <<< ---------------------------------------- >>>
 
     # --- 绘制对比图 ---
     print("\n--- Generating Comparison Plots ---")
-    # 1. 预测结果对比图
-    if true_values_original is not None and all_predictions:
-        comp_plot_save_path = os.path.join(cfg.PLOTS_DIR, f"comparison_predictions_run{run_id}.png")
+
+    # <<< Call the NEW full dataset plot function >>>
+    full_plot_save_path = os.path.join(plots_run_dir, f"comparison_full_dataset_predictions.png")
+    utils.plot_full_dataset_predictions(
+        full_predictions_data,
+        title=f"Full Dataset Prediction Comparison (Run {run_id})",
+        save_path=full_plot_save_path,
+        series_idx=cfg.PLOT_SERIES_IDX if hasattr(cfg, 'PLOT_SERIES_IDX') else 0 # Use config if available
+    )
+    # <<< -------------------------------------- >>>
+
+
+    # 1. 预测结果对比图 (Test Set Only - Optional, kept for focused view)
+    if full_predictions_data['test']['true'] is not None and full_predictions_data['test']['predictions']:
+        comp_plot_save_path = os.path.join(plots_run_dir, f"comparison_test_predictions.png") # Rename slightly
         utils.plot_comparison_predictions(
-            true_values_original,
-            all_predictions, # 传递包含所有模型预测的字典
+            full_predictions_data['test']['true'],
+            full_predictions_data['test']['predictions'], # Use collected test predictions
             title=f"Test Set Prediction Comparison (Run {run_id})",
             save_path=comp_plot_save_path,
-            series_idx=0 # 可以按需修改要绘制的序列索引
+            series_idx=cfg.PLOT_SERIES_IDX if hasattr(cfg, 'PLOT_SERIES_IDX') else 0 # Use config if available
         )
 
     # 2. 性能指标对比图
     if all_metrics:
-        metric_comp_plot_save_path = os.path.join(cfg.PLOTS_DIR, f"comparison_metrics_run{run_id}.png")
+        metric_comp_plot_save_path = os.path.join(plots_run_dir, f"comparison_metrics.png") # <<< 使用 plots_run_dir
         # <<< 调用 plot_metric_comparison >>>
         utils.plot_metric_comparison(
             all_metrics, # 传递包含所有模型指标的字典
@@ -208,7 +294,7 @@ def run_single_experiment(cfg, run_id=0):
     if all_robustness_dfs and cfg.METRICS:
         for metric in cfg.METRICS: # 为配置中的每个指标绘制鲁棒性图
              # <<< 调用 plot_robustness_comparison >>>
-             robustness_comp_plot_save_path = os.path.join(cfg.PLOTS_DIR, f"comparison_robustness_{metric}_run{run_id}.png")
+             robustness_comp_plot_save_path = os.path.join(plots_run_dir, f"comparison_robustness_{metric}.png") # <<< 使用 plots_run_dir
              utils.plot_robustness_comparison(
                  all_robustness_dfs, # 传递包含所有模型鲁棒性结果的字典
                  metric_name=metric,
@@ -289,7 +375,8 @@ def main(args):
 
     # --- 运行多次实验以评估稳定性 ---
     for i in range(cfg.STABILITY_RUNS):
-        results = run_single_experiment(cfg, models_dir, plots_dir, metrics_dir, run_id=i)
+        # <<< 传递动态路径给 run_single_experiment >>>
+        results = run_single_experiment(cfg, run_id=i, models_dir=models_dir, plots_dir=plots_dir, metrics_dir=metrics_dir)
         if results:
             all_run_results.append(results)
         else:
@@ -352,9 +439,7 @@ def main(args):
     print(f"\nAll run results saved to {all_results_save_path}")
 
     print("\n--- Experiment Finished ---")
-    print(f"Find models in: {cfg.MODELS_DIR}")
-    print(f"Find plots in: {cfg.PLOTS_DIR}")
-    print(f"Find metrics in: {cfg.METRICS_DIR}")
+    print(f"Find all results (models, plots, metrics) in: {experiment_dir}") # <<< 指向正确的动态目录
 
 
 if __name__ == "__main__":
