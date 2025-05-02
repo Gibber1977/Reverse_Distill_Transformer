@@ -20,7 +20,7 @@
 
 1.  **模型组件**: 支持集成多种时间序列模型作为教师（如 DLinear）和学生（如 PatchTST）。框架基于 `neuralforecast` 库预置了 DLinear 和 PatchTST 的支持。
 2.  **复合训练目标**: 学生模型在训练过程中优化一个复合损失函数：
-    $$ L_{total} = \alpha \cdot L_{task}(Y_{student}, Y_{true}) + (1-\alpha) \cdot L_{distill}(Y_{student}, Y_{teacher}) $$
+    $$L_{total} = \alpha \cdot L_{task}(Y_{student}, Y_{true}) + (1-\alpha) \cdot L_{distill}(Y_{student}, Y_{teacher})$$
     其中，$L_{task}$ 是学生预测 ($Y_{student}$) 与真实值 ($Y_{true}$) 之间的任务损失（如 MSE 或 MAE），$L_{distill}$ 是学生预测 ($Y_{student}$) 与教师预测 ($Y_{teacher}$) 之间的蒸馏损失。
 3.  **动态 Alpha 调度**: 参数 $\alpha$ 平衡了任务损失和蒸馏损失的重要性。框架支持 $\alpha$ 在训练过程中进行动态调整（Alpha Scheduling），例如初期 $\alpha$ 较小以更多依赖教师指导，后期 $\alpha$ 逐渐增大以更多拟合真实数据。
     > 注意：计算 $L_{distill}$ 时，教师模型的输出 $Y_{teacher}$ 会使用 `.detach()`，确保梯度只回传给学生模型。
