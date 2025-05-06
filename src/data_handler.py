@@ -35,7 +35,34 @@ class TimeSeriesDataset(Dataset):
         x = torch.tensor(x, dtype=torch.float32)
         y = torch.tensor(y, dtype=torch.float32)
 
-        return x, y
+        # 返回 x, y 以及 None 作为外生变量占位符
+        return x, y, None, None
+import torch.utils.data
+
+def collate_fn_skip_none(batch):
+    """
+    自定义 collate_fn，用于处理 Dataset 返回元组中可能包含 None 的情况。
+    它会正常 collate 非 None 的元素（假定为 Tensors），并保留 None 值。
+    """
+    # batch 是一个列表，每个元素是 Dataset.__getitem__ 的返回值 (x, y, hist_exog, futr_exog)
+    # 例如: [(x1, y1, None, None), (x2, y2, None, None), ...]
+
+    # 分离不同类型的元素
+    xs = [item[0] for item in batch]
+    ys = [item[1] for item in batch]
+    hist_exogs = [item[2] for item in batch] # 这将是 [None, None, ...]
+    futr_exogs = [item[3] for item in batch] # 这将是 [None, None, ...]
+
+    # Collate Tensors
+    collated_xs = torch.stack(xs, 0)
+    collated_ys = torch.stack(ys, 0)
+
+    # 处理外生变量 - 如果所有都是 None，则返回 None；否则尝试 collate（如果将来支持）
+    # 在当前情况下，它们总是 None
+    collated_hist_exogs = None if all(x is None for x in hist_exogs) else torch.utils.data.default_collate(hist_exogs) # 或者更复杂的处理
+    collated_futr_exogs = None if all(x is None for x in futr_exogs) else torch.utils.data.default_collate(futr_exogs) # 或者更复杂的处理
+
+    return collated_xs, collated_ys, collated_hist_exogs, collated_futr_exogs
 
 def load_and_preprocess_data(cfg):
     """加载、预处理、划分和创建 DataLoaders"""
@@ -129,11 +156,11 @@ def load_and_preprocess_data(cfg):
     val_dataset = TimeSeriesDataset(val_data_scaled, cfg.LOOKBACK_WINDOW, cfg.PREDICTION_HORIZON)
     test_dataset = TimeSeriesDataset(test_data_scaled, cfg.LOOKBACK_WINDOW, cfg.PREDICTION_HORIZON)
 
-    # 注意：时间序列通常不在训练时 shuffle，以利用样本间的时序关系，但在验证/测试时shuffle也无所谓
-    # 如果你想在训练时也打乱，设置 shuffle=True，但这可能不适用于所有模型或任务
-    train_loader = DataLoader(train_dataset, batch_size=cfg.BATCH_SIZE, shuffle=True, num_workers=cfg.NUM_WORKERS, drop_last=False)
-    val_loader = DataLoader(val_dataset, batch_size=cfg.BATCH_SIZE, shuffle=False, num_workers=cfg.NUM_WORKERS, drop_last=False)
-    test_loader = DataLoader(test_dataset, batch_size=cfg.BATCH_SIZE, shuffle=False, num_workers=cfg.NUM_WORKERS, drop_last=False)
+    # 注意：时间序列通常不在训练时 shuffle，以利用样本间的时序关系
+    # 使用自定义的 collate_fn 来处理 Dataset 返回的 None 值
+    train_loader = DataLoader(train_dataset, batch_size=cfg.BATCH_SIZE, shuffle=True, num_workers=cfg.NUM_WORKERS, drop_last=False, collate_fn=collate_fn_skip_none)
+    val_loader = DataLoader(val_dataset, batch_size=cfg.BATCH_SIZE, shuffle=False, num_workers=cfg.NUM_WORKERS, drop_last=False, collate_fn=collate_fn_skip_none)
+    test_loader = DataLoader(test_dataset, batch_size=cfg.BATCH_SIZE, shuffle=False, num_workers=cfg.NUM_WORKERS, drop_last=False, collate_fn=collate_fn_skip_none)
 
     print(f"DataLoaders created: Train batches={len(train_loader)}, Val batches={len(val_loader)}, Test batches={len(test_loader)}")
     print("--- Data Loading and Preprocessing Finished ---")

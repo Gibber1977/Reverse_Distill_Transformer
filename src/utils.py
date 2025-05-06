@@ -36,36 +36,49 @@ def plot_losses(train_losses, val_losses, title, save_path):
     plt.close()
     print(f"Loss plot saved to {save_path}")
 
-def plot_predictions(y_true, y_pred, title, save_path, num_series_to_plot=1, series_idx=0):
-    """绘制真实值与预测值的对比图 (只绘制部分序列和样本)"""
-    if y_true.ndim == 3: # [num_samples, horizon, features] -> [num_samples*horizon, features]
-        y_true_flat = y_true[:, :, series_idx].reshape(-1)
-        y_pred_flat = y_pred[:, :, series_idx].reshape(-1)
-    elif y_true.ndim == 2: # [num_samples, horizon] - assume single feature
-        y_true_flat = y_true.reshape(-1)
-        y_pred_flat = y_pred.reshape(-1)
-    else:
-        print(f"Warning: Unexpected data dimensions for plotting: {y_true.ndim}")
+def plot_predictions(y_true, y_pred, title, save_path, series_idx=0, sample_idx_to_plot=0):
+    """绘制单个样本的真实值与预测值的对比图 (绘制完整的预测范围)。"""
+    if y_true.ndim != 3 or y_pred.ndim != 3:
+        print(f"Warning: Unexpected data dimensions for plotting. True: {y_true.ndim}, Pred: {y_pred.ndim}. Expected 3D [samples, horizon, features].")
+        return
+    if y_true.shape[0] <= sample_idx_to_plot or y_pred.shape[0] <= sample_idx_to_plot:
+        print(f"Warning: sample_idx_to_plot ({sample_idx_to_plot}) is out of bounds for available samples ({y_true.shape[0]}). Plotting first sample.")
+        sample_idx_to_plot = 0
+    if y_true.shape[2] <= series_idx or y_pred.shape[2] <= series_idx:
+        print(f"Warning: series_idx ({series_idx}) is out of bounds for available features ({y_true.shape[2]}). Plotting first feature.")
+        series_idx = 0
+    if y_true.shape != y_pred.shape:
+         print(f"Warning: Shape mismatch between true values {y_true.shape} and predictions {y_pred.shape}. Plotting may be incorrect.")
+         # Attempt to plot based on true shape's horizon if possible
+         # return # Or decide how to handle, maybe return
+
+    # 选择指定样本和序列的完整预测范围
+    try:
+        y_true_sample = y_true[sample_idx_to_plot, :, series_idx]
+        y_pred_sample = y_pred[sample_idx_to_plot, :, series_idx]
+        horizon = len(y_true_sample) # Get horizon length from the sample
+    except IndexError as e:
+        print(f"Error accessing data with sample_idx={sample_idx_to_plot}, series_idx={series_idx}: {e}")
         return
 
     plt.figure(figsize=(15, 7))
-    # 只绘制前 500 个点以保持清晰
-    plot_len = min(500, len(y_true_flat))
-    plt.plot(y_true_flat[:plot_len], label='True Values', marker='.', linestyle='-')
-    plt.plot(y_pred_flat[:plot_len], label='Predictions', marker='x', linestyle='--')
+    time_steps = np.arange(horizon) # X-axis represents steps within the horizon
+
+    plt.plot(time_steps, y_true_sample, label='True Values', marker='.', linestyle='-')
+    plt.plot(time_steps, y_pred_sample, label='Predictions', marker='x', linestyle='--')
 
     # 如果提供了 TARGET_COLS，使用具体的列名
     target_col_name = config.TARGET_COLS[series_idx] if series_idx < len(config.TARGET_COLS) else f"Series {series_idx}"
-    full_title = f"{title} - {target_col_name}"
+    full_title = f"{title} - Sample {sample_idx_to_plot} - {target_col_name}" # Add sample index to title
 
     plt.title(full_title)
-    plt.xlabel('Time Steps (Sample Index)')
+    plt.xlabel(f'Time Steps within Prediction Horizon (Length: {horizon})') # Update x-axis label
     plt.ylabel('Value')
     plt.legend()
     plt.tight_layout()
     plt.savefig(save_path)
     plt.close()
-    print(f"Prediction plot saved to {save_path}")
+    print(f"Prediction plot for sample {sample_idx_to_plot} saved to {save_path}")
 
 def save_results(metrics_dict, filename):
     """将指标字典保存为 CSV 文件"""

@@ -6,8 +6,28 @@ from tqdm import tqdm
 import pandas as pd
 import os
 
+def mean_absolute_percentage_error(y_true, y_pred, epsilon=1e-8):
+    """计算 MAPE，处理分母为零的情况"""
+    y_true, y_pred = np.array(y_true), np.array(y_pred)
+    # 避免除以零
+    non_zero_mask = np.abs(y_true) > epsilon
+    if np.sum(non_zero_mask) == 0:
+        return np.nan # 如果所有真实值都接近零，无法计算 MAPE
+    return np.mean(np.abs((y_true[non_zero_mask] - y_pred[non_zero_mask]) / y_true[non_zero_mask])) * 100
+
+def weighted_absolute_percentage_error(y_true, y_pred, epsilon=1e-8):
+    """计算 WAPE"""
+    y_true, y_pred = np.array(y_true), np.array(y_pred)
+    absolute_error = np.abs(y_true - y_pred)
+    sum_absolute_error = np.sum(absolute_error)
+    sum_absolute_true = np.sum(np.abs(y_true))
+    if sum_absolute_true < epsilon:
+        return np.nan # 如果所有真实值的绝对值之和接近零
+    return (sum_absolute_error / sum_absolute_true) * 100
+
+
 def calculate_metrics(y_true, y_pred):
-    """计算 MSE 和 MAE"""
+    """计算 MSE, MAE, MAPE, WAPE"""
     # 确保是 numpy 数组
     if isinstance(y_true, torch.Tensor):
         y_true = y_true.cpu().numpy()
@@ -26,6 +46,11 @@ def calculate_metrics(y_true, y_pred):
     if 'mae' in config.METRICS:
         metrics['mae'] = mean_absolute_error(y_true_flat, y_pred_flat)
 
+    if 'mape' in config.METRICS: # 假设 config.METRICS 会包含 'mape'
+        metrics['mape'] = mean_absolute_percentage_error(y_true_flat, y_pred_flat)
+    if 'wape' in config.METRICS: # 假设 config.METRICS 会包含 'wape'
+        metrics['wape'] = weighted_absolute_percentage_error(y_true_flat, y_pred_flat)
+
     # (可选) 可以添加每个特征的指标
     # for i in range(y_true_flat.shape[1]):
     #     col_name = config.TARGET_COLS[i] if i < len(config.TARGET_COLS) else f"feature_{i}"
@@ -42,12 +67,16 @@ def predict(model, dataloader, device):
     all_trues = []
     with torch.no_grad():
         predict_iterator = tqdm(dataloader, desc="Predicting", leave=False)
-        for batch_x, batch_y in predict_iterator:
+        for batch_x, batch_y, batch_hist_exog, batch_futr_exog in predict_iterator:
             batch_x, batch_y = batch_x.to(device), batch_y.to(device)
 
             input_dict = {'insample_y': batch_x}
+            # 始终添加 exog 键，如果加载器未提供则设为 None
+            input_dict['hist_exog'] = batch_hist_exog.to(device) if batch_hist_exog is not None else None
+            input_dict['futr_exog'] = batch_futr_exog.to(device) if batch_futr_exog is not None else None
+
             outputs = model(input_dict)
-            
+
             all_preds.append(outputs.cpu())
             all_trues.append(batch_y.cpu())
 
@@ -107,6 +136,7 @@ def evaluate_robustness(model, dataloader, device, scaler, noise_levels, model_n
     robustness_results = {}
 
     # 获取原始的、干净的测试集预测和真实值 (用于比较)
+    # predict 函数现在返回 (true_values, predictions)
     original_trues_scaled, original_preds_scaled = predict(model, dataloader, device)
 
     # ... (inside evaluate_robustness function) ...
@@ -120,10 +150,15 @@ def evaluate_robustness(model, dataloader, device, scaler, noise_levels, model_n
         model.to(device) # 确保模型在设备上
         with torch.no_grad():
             noisy_iterator = tqdm(dataloader, desc=f"Predicting (Noise={noise_level})", leave=False)
-            for batch_x, batch_y in noisy_iterator:
+            for batch_x, batch_y, batch_hist_exog, batch_futr_exog in noisy_iterator:
                 # --- STEP 1: Move input data to the target device FIRST ---
                 batch_x = batch_x.to(device)
                 batch_y = batch_y.to(device) # Also move labels if needed later on device
+                # Move exog variables if they exist
+                if batch_hist_exog is not None:
+                    batch_hist_exog = batch_hist_exog.to(device)
+                if batch_futr_exog is not None:
+                    batch_futr_exog = batch_futr_exog.to(device)
 
                 # --- STEP 2: Calculate noise based on data ON THE DEVICE ---
                 # Calculate std dev on the device itself
@@ -137,6 +172,11 @@ def evaluate_robustness(model, dataloader, device, scaler, noise_levels, model_n
 
                 # --- STEP 4: Model prediction (Input must be on the model's device) ---
                 input_dict = {'insample_y': noisy_batch_x}
+                # 始终添加 exog 键，如果加载器未提供则设为 None
+                # 注意：噪声是加在 batch_x 上的，外生变量通常不加噪声
+                input_dict['hist_exog'] = batch_hist_exog if batch_hist_exog is not None else None # Already on device or None
+                input_dict['futr_exog'] = batch_futr_exog if batch_futr_exog is not None else None # Already on device or None
+
                 outputs = model(input_dict)
 
                 # --- STEP 5: Move results back to CPU for storage/aggregation ---

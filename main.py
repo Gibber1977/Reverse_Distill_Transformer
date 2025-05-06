@@ -14,17 +14,21 @@ from src.data_handler import load_and_preprocess_data
 from src.models import get_teacher_model, get_student_model
 from src.trainer import StandardTrainer, RDT_Trainer, get_optimizer, get_loss_function
 from src.schedulers import get_alpha_scheduler, ConstantScheduler # 明确导入 ConstantScheduler
-from src.evaluator import evaluate_model, evaluate_robustness, calculate_metrics, predict # <<< 导入 predict 函数
+from src.evaluator import evaluate_robustness, calculate_metrics, predict # 移除 evaluate_model, 因为评估逻辑已整合
 
 
-def run_single_experiment(cfg, run_id, models_dir, plots_dir, metrics_dir): # <<< 接收动态路径
-    """运行单次完整的实验流程（用于稳定性评估）"""
+def run_single_experiment(cfg, run_id, models_dir, plots_dir, metrics_dir):
+    """
+    运行单次完整的实验流程（用于稳定性评估）。
+    评估所有成功训练的模型在 train, val, test 集上的指标。
+    处理 cfg.TEACHER_MODEL_NAME 为 None 的情况 (TaskOnly)。
+    """
     print(f"\n===== Starting Experiment Run {run_id + 1} / {cfg.STABILITY_RUNS} with Seed {cfg.SEED + run_id} =====")
     current_seed = cfg.SEED + run_id
     utils.set_seed(current_seed)
 
-    run_results = {'run_id': run_id, 'seed': current_seed}
     model_paths = {} # 存储本次运行的模型路径
+    all_split_metrics = {} # 存储所有模型在所有划分上的指标: {'ModelName': {'train': {...}, 'val': {...}, 'test': {...}}}
 
     # --- 创建本次运行的子目录 ---
     plots_run_dir = os.path.join(plots_dir, f'run_{run_id}')
@@ -35,44 +39,59 @@ def run_single_experiment(cfg, run_id, models_dir, plots_dir, metrics_dir): # <<
     # --- 1. 数据加载与预处理 ---
     try:
         train_loader, val_loader, test_loader, scaler = load_and_preprocess_data(cfg)
+        dataloaders = {'train': train_loader, 'val': val_loader, 'test': test_loader} # Group loaders
     except Exception as e:
         print(f"Error in data loading/preprocessing: {e}")
         return None # 无法继续
 
     # --- 2. 初始化模型、优化器、损失函数 ---
-    teacher_model = get_teacher_model(cfg)
-    student_model_base = get_student_model(cfg) # 用于标准训练和 RDT 的基础学生模型
+    teacher_model = None
+    trained_teacher_model = None
+    if cfg.TEACHER_MODEL_NAME:
+        print(f"\n--- Initializing Teacher Model: {cfg.TEACHER_MODEL_NAME} ---")
+        teacher_model = get_teacher_model(cfg)
+    else:
+        print("\n--- No Teacher Model specified (TaskOnly mode) ---")
+
+    print(f"\n--- Initializing Student Model: {cfg.STUDENT_MODEL_NAME} ---")
+    # Student model instances will be created within training blocks
 
     task_loss_fn = get_loss_function(cfg)
-    distill_loss_fn = get_loss_function(cfg) # RDT 中蒸馏损失通常与任务损失一致
+    distill_loss_fn = get_loss_function(cfg) if cfg.TEACHER_MODEL_NAME else None # Only needed if teacher exists
 
-    # --- 3. 训练教师模型 (Standard Training) ---
-    print("\n--- Training Teacher Model ---")
-    teacher_optimizer = get_optimizer(teacher_model, cfg)
-    teacher_model_save_path = os.path.join(models_dir, f"teacher_{cfg.TEACHER_MODEL_NAME}_run{run_id}_seed{current_seed}.pt") # <<< 使用 models_dir
-    model_paths['teacher'] = teacher_model_save_path
-    teacher_trainer = StandardTrainer(
-        model=teacher_model,
-        train_loader=train_loader,
-        val_loader=val_loader,
-        optimizer=teacher_optimizer,
-        loss_fn=task_loss_fn,
-        device=cfg.DEVICE,
-        epochs=cfg.EPOCHS,
-        patience=cfg.PATIENCE,
-        model_save_path=teacher_model_save_path,
-        model_name=f"Teacher ({cfg.TEACHER_MODEL_NAME})"
-    )
-    trained_teacher_model, teacher_history = teacher_trainer.train()
-    utils.plot_losses(teacher_history['train_loss'], teacher_history['val_loss'],
-                      title=f"Teacher ({cfg.TEACHER_MODEL_NAME}) Training Loss (Run {run_id})",
-                      save_path=os.path.join(plots_run_dir, f"teacher_loss.png")) # <<< 使用 plots_run_dir
+    # --- 3. 训练教师模型 (Standard Training, if specified) ---
+    if teacher_model:
+        print(f"\n--- Training Teacher Model ({cfg.TEACHER_MODEL_NAME}) ---")
+        teacher_optimizer = get_optimizer(teacher_model, cfg)
+        teacher_model_save_path = os.path.join(models_dir, f"teacher_{cfg.TEACHER_MODEL_NAME}_run{run_id}_seed{current_seed}.pt")
+        model_paths['teacher'] = teacher_model_save_path
+        teacher_trainer = StandardTrainer(
+            model=teacher_model,
+            train_loader=train_loader,
+            val_loader=val_loader,
+            optimizer=teacher_optimizer,
+            loss_fn=task_loss_fn,
+            device=cfg.DEVICE,
+            epochs=cfg.EPOCHS,
+            patience=cfg.PATIENCE,
+            model_save_path=teacher_model_save_path,
+            model_name=f"Teacher ({cfg.TEACHER_MODEL_NAME})"
+        )
+        trained_teacher_model, teacher_history = teacher_trainer.train()
+        if trained_teacher_model:
+             utils.plot_losses(teacher_history['train_loss'], teacher_history['val_loss'],
+                               title=f"Teacher ({cfg.TEACHER_MODEL_NAME}) Training Loss (Run {run_id})",
+                               save_path=os.path.join(plots_run_dir, f"teacher_loss.png"))
+        else:
+             print(f"Teacher model training failed or stopped early for run {run_id}. Skipping subsequent dependent steps.")
+             # Allow continuing to train the student task-only model
 
-    # --- 4. 训练基线学生模型 (Standard Training, Alpha=1.0 Task Only) ---
-    print("\n--- Training Baseline Student Model (Task Only, Alpha=1.0) ---")
+    # --- 4. 训练学生模型 (Standard Training, Task Only) ---
+    print(f"\n--- Training Student Model ({cfg.STUDENT_MODEL_NAME}) - Task Only ---")
     student_task_only_model = get_student_model(cfg)
+    trained_student_task_only_model = None
     student_task_only_optimizer = get_optimizer(student_task_only_model, cfg)
-    student_task_only_save_path = os.path.join(models_dir, f"student_{cfg.STUDENT_MODEL_NAME}_task_only_run{run_id}_seed{current_seed}.pt") # <<< 使用 models_dir
+    student_task_only_save_path = os.path.join(models_dir, f"student_{cfg.STUDENT_MODEL_NAME}_task_only_run{run_id}_seed{current_seed}.pt")
     model_paths['student_task_only'] = student_task_only_save_path
     student_task_only_trainer = StandardTrainer(
         model=student_task_only_model,
@@ -84,272 +103,272 @@ def run_single_experiment(cfg, run_id, models_dir, plots_dir, metrics_dir): # <<
         epochs=cfg.EPOCHS,
         patience=cfg.PATIENCE,
         model_save_path=student_task_only_save_path,
-        model_name=f"Student ({cfg.STUDENT_MODEL_NAME}) Task Only (Alpha=1.0)"
+        model_name=f"Student ({cfg.STUDENT_MODEL_NAME}) Task Only"
     )
     trained_student_task_only_model, student_task_only_history = student_task_only_trainer.train()
-    utils.plot_losses(student_task_only_history['train_loss'], student_task_only_history['val_loss'],
-                      title=f"Student Task Only (Alpha=1.0) Training Loss (Run {run_id})",
-                      save_path=os.path.join(plots_run_dir, f"student_task_only_loss.png")) # <<< 使用 plots_run_dir
+    if trained_student_task_only_model:
+        utils.plot_losses(student_task_only_history['train_loss'], student_task_only_history['val_loss'],
+                          title=f"Student Task Only Training Loss (Run {run_id})",
+                          save_path=os.path.join(plots_run_dir, f"student_task_only_loss.png"))
+    else:
+        print(f"Student Task Only model training failed or stopped early for run {run_id}.")
+        # If this fails, subsequent steps might be less meaningful, but we continue evaluation
 
-    # --- 5. 训练 RDT 学生模型 ---
-    print("\n--- Training RDT Student Model ---")
-    student_rdt_model = get_student_model(cfg)
-    student_rdt_optimizer = get_optimizer(student_rdt_model, cfg)
-    alpha_scheduler = get_alpha_scheduler(cfg) # RDT 特有
-    student_rdt_save_path = os.path.join(models_dir, f"student_{cfg.STUDENT_MODEL_NAME}_rdt_run{run_id}_seed{current_seed}.pt") # <<< 使用 models_dir
-    model_paths['student_rdt'] = student_rdt_save_path
-    rdt_trainer = RDT_Trainer(
-        student_model=student_rdt_model,
-        teacher_model=trained_teacher_model, # 使用训练好的教师模型
-        train_loader=train_loader,
-        val_loader=val_loader,
-        optimizer=student_rdt_optimizer,
-        task_loss_fn=task_loss_fn,
-        distill_loss_fn=distill_loss_fn,
-        alpha_scheduler=alpha_scheduler,
-        device=cfg.DEVICE,
-        epochs=cfg.EPOCHS,
-        patience=cfg.PATIENCE,
-        model_save_path=student_rdt_save_path,
-        model_name=f"Student ({cfg.STUDENT_MODEL_NAME}) RDT"
-    )
-    trained_student_rdt_model, student_rdt_history = rdt_trainer.train()
-    utils.plot_losses(student_rdt_history['train_loss'], student_rdt_history['val_loss'],
-                      title=f"RDT Student Training Loss (Total Train, Task Val) (Run {run_id})",
-                      save_path=os.path.join(plots_run_dir, f"student_rdt_loss.png")) # <<< 使用 plots_run_dir
-    # (可选) 绘制 Alpha 变化图
-    if 'alpha' in student_rdt_history and student_rdt_history['alpha']:
-        plt.figure()
-        plt.plot(student_rdt_history['alpha'])
-        plt.title(f"RDT Alpha Schedule (Run {run_id})")
-        plt.xlabel("Epoch")
-        plt.ylabel("Alpha")
-        plt.grid(True)
-        plt.savefig(os.path.join(plots_run_dir, f"student_rdt_alpha.png")) # <<< 使用 plots_run_dir
-        plt.close()
+    # --- 5. 训练 RDT 学生模型 (if teacher exists and was trained) ---
+    trained_student_rdt_model = None
+    if trained_teacher_model and distill_loss_fn:
+        print(f"\n--- Training RDT Student Model ({cfg.STUDENT_MODEL_NAME}) ---")
+        student_rdt_model = get_student_model(cfg)
+        student_rdt_optimizer = get_optimizer(student_rdt_model, cfg)
+        alpha_scheduler = get_alpha_scheduler(cfg)
+        student_rdt_save_path = os.path.join(models_dir, f"student_{cfg.STUDENT_MODEL_NAME}_rdt_run{run_id}_seed{current_seed}.pt")
+        model_paths['student_rdt'] = student_rdt_save_path
+        rdt_trainer = RDT_Trainer(
+            student_model=student_rdt_model,
+            teacher_model=trained_teacher_model,
+            train_loader=train_loader,
+            val_loader=val_loader,
+            optimizer=student_rdt_optimizer,
+            task_loss_fn=task_loss_fn,
+            distill_loss_fn=distill_loss_fn,
+            alpha_scheduler=alpha_scheduler,
+            device=cfg.DEVICE,
+            epochs=cfg.EPOCHS,
+            patience=cfg.PATIENCE,
+            model_save_path=student_rdt_save_path,
+            model_name=f"Student ({cfg.STUDENT_MODEL_NAME}) RDT"
+        )
+        trained_student_rdt_model, student_rdt_history = rdt_trainer.train()
+        if trained_student_rdt_model:
+            utils.plot_losses(student_rdt_history['train_loss'], student_rdt_history['val_loss'],
+                              title=f"RDT Student Training Loss (Total Train, Task Val) (Run {run_id})",
+                              save_path=os.path.join(plots_run_dir, f"student_rdt_loss.png"))
+            if 'alpha' in student_rdt_history and student_rdt_history['alpha']:
+                plt.figure()
+                plt.plot(student_rdt_history['alpha'])
+                plt.title(f"RDT Alpha Schedule (Run {run_id})")
+                plt.xlabel("Epoch"); plt.ylabel("Alpha"); plt.grid(True)
+                plt.savefig(os.path.join(plots_run_dir, f"student_rdt_alpha.png")); plt.close()
+        else:
+            print(f"Student RDT model training failed or stopped early for run {run_id}.")
 
-    # --- 6. 训练追随者学生模型 (Follower, Alpha=0.0) ---
-    print("\n--- Training Follower Student Model (Distill Only, Alpha=0.0) ---")
-    student_follower_model = get_student_model(cfg)
-    student_follower_optimizer = get_optimizer(student_follower_model, cfg)
-    follower_alpha_scheduler = ConstantScheduler(alpha_value=0.0, total_epochs=cfg.EPOCHS)
-    student_follower_save_path = os.path.join(models_dir, f"student_{cfg.STUDENT_MODEL_NAME}_follower_run{run_id}_seed{current_seed}.pt") # <<< 使用 models_dir
-    model_paths['student_follower'] = student_follower_save_path
-    follower_trainer = RDT_Trainer( # 复用 RDT Trainer，但 Alpha 恒为 0
-        student_model=student_follower_model,
-        teacher_model=trained_teacher_model,
-        train_loader=train_loader,
-        val_loader=val_loader,
-        optimizer=student_follower_optimizer,
-        task_loss_fn=task_loss_fn,
-        distill_loss_fn=distill_loss_fn,
-        alpha_scheduler=follower_alpha_scheduler, # 使用 alpha=0 的调度器
-        device=cfg.DEVICE,
-        epochs=cfg.EPOCHS,
-        patience=cfg.PATIENCE, # 注意：早停基于 Task Loss，即使训练目标是 Distill Loss
-        model_save_path=student_follower_save_path,
-        model_name=f"Student ({cfg.STUDENT_MODEL_NAME}) Follower (Alpha=0.0)"
-    )
-    trained_student_follower_model, student_follower_history = follower_trainer.train()
-    utils.plot_losses(student_follower_history['train_loss'], student_follower_history['val_loss'],
-                       title=f"Follower Student Training Loss (Distill Train, Task Val) (Run {run_id})",
-                       save_path=os.path.join(plots_run_dir, f"student_follower_loss.png")) # <<< 使用 plots_run_dir
+    # --- 6. 训练追随者学生模型 (Follower, Alpha=0.0, if teacher exists and was trained) ---
+    trained_student_follower_model = None
+    if trained_teacher_model and distill_loss_fn:
+        print(f"\n--- Training Follower Student Model ({cfg.STUDENT_MODEL_NAME}) (Distill Only, Alpha=0.0) ---")
+        student_follower_model = get_student_model(cfg)
+        student_follower_optimizer = get_optimizer(student_follower_model, cfg)
+        follower_alpha_scheduler = ConstantScheduler(alpha_value=0.0, total_epochs=cfg.EPOCHS)
+        student_follower_save_path = os.path.join(models_dir, f"student_{cfg.STUDENT_MODEL_NAME}_follower_run{run_id}_seed{current_seed}.pt")
+        model_paths['student_follower'] = student_follower_save_path
+        follower_trainer = RDT_Trainer(
+            student_model=student_follower_model,
+            teacher_model=trained_teacher_model,
+            train_loader=train_loader,
+            val_loader=val_loader,
+            optimizer=student_follower_optimizer,
+            task_loss_fn=task_loss_fn,
+            distill_loss_fn=distill_loss_fn,
+            alpha_scheduler=follower_alpha_scheduler,
+            device=cfg.DEVICE,
+            epochs=cfg.EPOCHS,
+            patience=cfg.PATIENCE,
+            model_save_path=student_follower_save_path,
+            model_name=f"Student ({cfg.STUDENT_MODEL_NAME}) Follower (Alpha=0.0)"
+        )
+        trained_student_follower_model, student_follower_history = follower_trainer.train()
+        if trained_student_follower_model:
+            utils.plot_losses(student_follower_history['train_loss'], student_follower_history['val_loss'],
+                               title=f"Follower Student Training Loss (Distill Train, Task Val) (Run {run_id})",
+                               save_path=os.path.join(plots_run_dir, f"student_follower_loss.png"))
+        else:
+             print(f"Student Follower model training failed or stopped early for run {run_id}.")
 
-    # --- 7. 评估所有模型 ---
-    models_to_evaluate = {
-        "Teacher": trained_teacher_model,
-        "Student_TaskOnly": trained_student_task_only_model,
-        "Student_RDT": trained_student_rdt_model,
-        "Student_Follower": trained_student_follower_model
-    }
-    all_metrics = {}
-    # all_predictions = {} # Replaced by full_predictions_data
-    all_robustness_dfs = {} # <<< 新增: 收集鲁棒性结果
-    # true_values_original = None # Replaced by full_predictions_data
+    # --- 7. 评估所有成功训练的模型 (在 Train, Val, Test 上) ---
+    models_to_evaluate = {}
+    if trained_teacher_model:
+        models_to_evaluate["Teacher"] = trained_teacher_model
+    if trained_student_task_only_model:
+        # Use the standard name "TaskOnly" if teacher exists, otherwise just the student name
+        eval_name = "Student_TaskOnly" if cfg.TEACHER_MODEL_NAME else cfg.STUDENT_MODEL_NAME
+        models_to_evaluate[eval_name] = trained_student_task_only_model
+        if 'student_task_only' in model_paths: # Check if key exists before popping
+             model_paths[eval_name] = model_paths.pop('student_task_only') # Rename path key
+    if trained_student_rdt_model:
+        models_to_evaluate["Student_RDT"] = trained_student_rdt_model
+    if trained_student_follower_model:
+        models_to_evaluate["Student_Follower"] = trained_student_follower_model
 
-    # <<< Initialize structure for full dataset plotting >>>
-    full_predictions_data = {
-        'train': {'true': None, 'predictions': {}},
-        'val':   {'true': None, 'predictions': {}},
-        'test':  {'true': None, 'predictions': {}}
-    }
-    # <<< ------------------------------------------ >>>
+    all_robustness_dfs = {} # Keep robustness evaluation separate
 
-    print("\n--- Evaluating Models & Collecting Predictions ---")
-    # is_first_model = True # Flag to collect true values only once (handled by checking None)
+    print("\n--- Evaluating Models on Train, Validation, and Test Sets ---")
 
     for name, model in models_to_evaluate.items():
-        print(f"Processing {name}...")
-        model_display_name = f"{name}_run{run_id}"
+        print(f"\n--- Evaluating: {name} (Run {run_id}) ---")
+        all_split_metrics[name] = {} # Initialize metrics dict for this model
 
-        # --- Evaluate on Test Set (Existing Logic + Store for Full Plot) ---
-        print(f"  Evaluating {name} on Test Set...")
-        metrics, test_trues_original, test_preds_original = evaluate_model(
-            model, test_loader, cfg.DEVICE, scaler,
-            model_name=model_display_name, plots_dir=plots_run_dir
-        )
-        all_metrics[name] = metrics # 存储本次运行的核心指标
-        # Store test results for the full plot
-        if full_predictions_data['test']['true'] is None:
-             full_predictions_data['test']['true'] = test_trues_original
-        full_predictions_data['test']['predictions'][name] = test_preds_original
+        for split_name, loader in dataloaders.items():
+            print(f"  Evaluating on: {split_name} set...")
+            if loader is None:
+                print(f"    Skipping {split_name} set (loader not available).")
+                all_split_metrics[name][split_name] = {m: np.nan for m in cfg.METRICS}
+                continue
 
+            # Predict
+            true_values_scaled, predictions_scaled = predict(model, loader, cfg.DEVICE)
 
-        # --- Predict on Train Set ---
-        print(f"  Predicting {name} on Train Set...")
-        train_trues_scaled, train_preds_scaled = predict(model, train_loader, cfg.DEVICE)
-        # Inverse transform train predictions
-        train_preds_original = None
-        train_trues_original = None # Initialize to None
-        if train_preds_scaled is not None and train_trues_scaled is not None:
+            if true_values_scaled is None or predictions_scaled is None:
+                 print(f"    Prediction failed for {name} on {split_name} set.")
+                 all_split_metrics[name][split_name] = {m: np.nan for m in cfg.METRICS}
+                 continue
+
+            # Inverse transform
+            n_samples, horizon, n_features = predictions_scaled.shape
+            pred_reshaped = predictions_scaled.view(-1, n_features).cpu().numpy()
+            true_reshaped = true_values_scaled.view(-1, n_features).cpu().numpy()
+
             try:
-                n_samples_tr, horizon_tr, n_features_tr = train_preds_scaled.shape
-                pred_reshaped_tr = train_preds_scaled.view(-1, n_features_tr).numpy()
-                true_reshaped_tr = train_trues_scaled.view(-1, n_features_tr).numpy()
-                train_preds_original = scaler.inverse_transform(pred_reshaped_tr).reshape(n_samples_tr, horizon_tr, n_features_tr)
-                train_trues_original = scaler.inverse_transform(true_reshaped_tr).reshape(n_samples_tr, horizon_tr, n_features_tr)
+                if not hasattr(scaler, 'mean_') or scaler.mean_ is None:
+                     raise ValueError("Scaler is not fitted.")
+                predictions_original = scaler.inverse_transform(pred_reshaped)
+                true_values_original = scaler.inverse_transform(true_reshaped)
             except Exception as e:
-                print(f"Error inverse transforming train data for {name}: {e}. Skipping train plot data.")
-                # Keep them as None
+                print(f"    Error during inverse transform for {split_name}: {e}. Using scaled values.")
+                predictions_original = pred_reshaped
+                true_values_original = true_reshaped
 
-        if train_preds_original is not None:
-            if full_predictions_data['train']['true'] is None and train_trues_original is not None:
-                 full_predictions_data['train']['true'] = train_trues_original
-            full_predictions_data['train']['predictions'][name] = train_preds_original
+            # Reshape back
+            predictions_original = predictions_original.reshape(n_samples, horizon, n_features)
+            true_values_original = true_values_original.reshape(n_samples, horizon, n_features)
+
+            # Calculate metrics
+            split_metrics = calculate_metrics(true_values_original, predictions_original)
+            all_split_metrics[name][split_name] = split_metrics
+
+            print(f"    Metrics ({split_name}): {split_metrics}")
+
+            # Plotting predictions for the test set only for brevity
+            if split_name == 'test':
+                 plot_save_path = os.path.join(plots_run_dir, f"{name}_test_predictions.png")
+                 utils.plot_predictions(true_values_original, predictions_original,
+                                        title=f"{name} - Test Set Predictions (Run {run_id})",
+                                        save_path=plot_save_path, series_idx=0, sample_idx_to_plot=0) # Explicitly plot the first sample
 
 
-        # --- Predict on Validation Set ---
-        print(f"  Predicting {name} on Validation Set...")
-        val_trues_scaled, val_preds_scaled = predict(model, val_loader, cfg.DEVICE)
-        # Inverse transform validation predictions
-        val_preds_original = None
-        val_trues_original = None # Initialize to None
-        if val_preds_scaled is not None and val_trues_scaled is not None:
-            try:
-                n_samples_val, horizon_val, n_features_val = val_preds_scaled.shape
-                pred_reshaped_val = val_preds_scaled.view(-1, n_features_val).numpy()
-                true_reshaped_val = val_trues_scaled.view(-1, n_features_val).numpy()
-                val_preds_original = scaler.inverse_transform(pred_reshaped_val).reshape(n_samples_val, horizon_val, n_features_val)
-                val_trues_original = scaler.inverse_transform(true_reshaped_val).reshape(n_samples_val, horizon_val, n_features_val)
-            except Exception as e:
-                print(f"Error inverse transforming validation data for {name}: {e}. Skipping val plot data.")
-                # Keep them as None
-
-        if val_preds_original is not None:
-            if full_predictions_data['val']['true'] is None and val_trues_original is not None:
-                 full_predictions_data['val']['true'] = val_trues_original
-            full_predictions_data['val']['predictions'][name] = val_preds_original
-
-        # --- (可选) 评估鲁棒性 ---
-        if cfg.ROBUSTNESS_NOISE_LEVELS and len(cfg.ROBUSTNESS_NOISE_LEVELS) > 0:
-             print(f"--- Evaluating Robustness for {name}_run{run_id} ---")
-             # <<< 修改: 接收并存储鲁棒性评估结果 DataFrame, 传递 metrics_run_dir >>>
+        # --- Robustness Evaluation (on Test Set only) ---
+        if split_name == 'test' and cfg.ROBUSTNESS_NOISE_LEVELS and len(cfg.ROBUSTNESS_NOISE_LEVELS) > 0:
+             print(f"\n--- Evaluating Robustness for {name}_run{run_id} (on Test Set) ---")
              df_robustness = evaluate_robustness(model, test_loader, cfg.DEVICE, scaler,
                                                  cfg.ROBUSTNESS_NOISE_LEVELS,
                                                  model_name=f"{name}_run{run_id}", metrics_dir=metrics_run_dir)
-             all_robustness_dfs[name] = df_robustness # <<< 存储DataFrame
-             # (可选) 如果需要将每次运行的鲁棒性结果保存为 CSV
-             # robustness_csv_path = os.path.join(metrics_run_dir, f"{name}_robustness.csv")
-             # df_robustness.to_csv(robustness_csv_path)
-             # print(f"Robustness results for {name} saved to {robustness_csv_path}")
-             # <<< ---------------------------------------- >>>
-
-    # --- 绘制对比图 ---
-    print("\n--- Generating Comparison Plots ---")
-
-    # <<< Call the NEW full dataset plot function >>>
-    full_plot_save_path = os.path.join(plots_run_dir, f"comparison_full_dataset_predictions.png")
-    utils.plot_full_dataset_predictions(
-        full_predictions_data,
-        title=f"Full Dataset Prediction Comparison (Run {run_id})",
-        save_path=full_plot_save_path,
-        series_idx=cfg.PLOT_SERIES_IDX if hasattr(cfg, 'PLOT_SERIES_IDX') else 0 # Use config if available
-    )
-    # <<< -------------------------------------- >>>
+             all_robustness_dfs[name] = df_robustness
 
 
-    # 1. 预测结果对比图 (Test Set Only - Optional, kept for focused view)
-    if full_predictions_data['test']['true'] is not None and full_predictions_data['test']['predictions']:
-        comp_plot_save_path = os.path.join(plots_run_dir, f"comparison_test_predictions.png") # Rename slightly
-        utils.plot_comparison_predictions(
-            full_predictions_data['test']['true'],
-            full_predictions_data['test']['predictions'], # Use collected test predictions
-            title=f"Test Set Prediction Comparison (Run {run_id})",
-            save_path=comp_plot_save_path,
-            series_idx=cfg.PLOT_SERIES_IDX if hasattr(cfg, 'PLOT_SERIES_IDX') else 0 # Use config if available
-        )
-
-    # 2. 性能指标对比图
-    if all_metrics:
-        metric_comp_plot_save_path = os.path.join(plots_run_dir, f"comparison_metrics.png") # <<< 使用 plots_run_dir
-        # <<< 调用 plot_metric_comparison >>>
-        utils.plot_metric_comparison(
-            all_metrics, # 传递包含所有模型指标的字典
-            title=f"Test Set Metric Comparison (Run {run_id})",
-            save_path=metric_comp_plot_save_path
-        )
-        # <<< -------------------------- >>>
-
-    # 3. 鲁棒性对比图
-    if all_robustness_dfs and cfg.METRICS:
-        for metric in cfg.METRICS: # 为配置中的每个指标绘制鲁棒性图
-             # <<< 调用 plot_robustness_comparison >>>
-             robustness_comp_plot_save_path = os.path.join(plots_run_dir, f"comparison_robustness_{metric}.png") # <<< 使用 plots_run_dir
-             utils.plot_robustness_comparison(
-                 all_robustness_dfs, # 传递包含所有模型鲁棒性结果的字典
-                 metric_name=metric,
-                 title=f"Robustness Comparison ({metric.upper()}) vs Noise Level (Run {run_id})",
-                 save_path=robustness_comp_plot_save_path
-                 # Optional: pass all_metrics here if you want to add noise=0 point
-             )
-             # <<< ------------------------------- >>>
-    # ------------------------
-
-    # --- 8. 收集本次运行的结果 ---
-    for model_name, metrics in all_metrics.items():
-        for metric_name, value in metrics.items():
-            run_results[f"{model_name}_{metric_name}"] = value
-    # (可选) 将鲁棒性指标也添加到结果中，但会使 DataFrame 列变多
-    # for model_name, df_robust in all_robustness_dfs.items():
-    #     for noise_level in df_robust.index:
-    #         for metric_name in df_robust.columns:
-    #             run_results[f"{model_name}_robust_{noise_level}_{metric_name}"] = df_robust.loc[noise_level, metric_name]
-
-    run_results['teacher_model_path'] = model_paths.get('teacher', 'N/A')
-    run_results['student_task_only_model_path'] = model_paths.get('student_task_only', 'N/A')
-    run_results['student_rdt_model_path'] = model_paths.get('student_rdt', 'N/A')
-    run_results['student_follower_model_path'] = model_paths.get('student_follower', 'N/A')
+    # --- 8. 返回本次运行的结果 ---
+    final_results = {
+        'run_id': run_id,
+        'seed': current_seed,
+        'metrics': all_split_metrics, # Contains metrics for all models and splits
+        'model_paths': model_paths
+    }
 
     print(f"===== Finished Experiment Run {run_id + 1} / {cfg.STABILITY_RUNS} =====")
-    return run_results
+    return final_results
 
+
+def update_config_from_args(cfg, args):
+    """根据命令行参数更新配置对象"""
+    if args.dataset_path:
+        cfg.DATASET_PATH = args.dataset_path
+        try:
+            dataset_name_inferred = os.path.splitext(os.path.basename(cfg.DATASET_PATH))[0]
+            if 'ETT-small' in cfg.DATASET_PATH:
+                 parent_dir = os.path.basename(os.path.dirname(cfg.DATASET_PATH))
+                 dataset_name_inferred = f"{parent_dir}_{dataset_name_inferred}"
+            cfg.DATASET_NAME_FOR_RESULT_PATH = dataset_name_inferred
+        except Exception:
+            cfg.DATASET_NAME_FOR_RESULT_PATH = "unknown_dataset"
+            print(f"Warning: Could not extract dataset name from path '{cfg.DATASET_PATH}'. Using default.")
+    else:
+        try: # Try inferring from default path if not provided
+            dataset_name_inferred = os.path.splitext(os.path.basename(cfg.DATASET_PATH))[0] # Define inferred name here
+            if 'ETT-small' in cfg.DATASET_PATH:
+                 parent_dir = os.path.basename(os.path.dirname(cfg.DATASET_PATH))
+                 dataset_name_inferred = f"{parent_dir}_{dataset_name_inferred}" # Use inferred name
+            cfg.DATASET_NAME_FOR_RESULT_PATH = dataset_name_inferred # Assign inferred name
+        except Exception:
+            cfg.DATASET_NAME_FOR_RESULT_PATH = "unknown_dataset"
+
+
+    if args.prediction_horizon is not None: cfg.PREDICTION_HORIZON = args.prediction_horizon
+    if args.lookback_window is not None: cfg.LOOKBACK_WINDOW = args.lookback_window
+    if args.epochs is not None: cfg.EPOCHS = args.epochs
+    if args.stability_runs is not None: cfg.STABILITY_RUNS = args.stability_runs
+    if args.teacher_model_name: cfg.TEACHER_MODEL_NAME = args.teacher_model_name if args.teacher_model_name.lower() != 'none' else None
+    if args.student_model_name: cfg.STUDENT_MODEL_NAME = args.student_model_name
+
+    # Update dependent configs - Needs to be more robust if models change
+    # This assumes TEACHER_CONFIG and STUDENT_CONFIG exist and have these keys
+    if hasattr(cfg, 'TEACHER_CONFIG') and cfg.TEACHER_CONFIG:
+        cfg.TEACHER_CONFIG['h'] = cfg.PREDICTION_HORIZON
+        cfg.TEACHER_CONFIG['input_size'] = cfg.LOOKBACK_WINDOW
+        if hasattr(cfg, 'TARGET_COLS'): cfg.TEACHER_CONFIG['n_series'] = len(cfg.TARGET_COLS) # Ensure n_series is updated too
+    if hasattr(cfg, 'STUDENT_CONFIG') and cfg.STUDENT_CONFIG:
+        cfg.STUDENT_CONFIG['h'] = cfg.PREDICTION_HORIZON
+        cfg.STUDENT_CONFIG['input_size'] = cfg.LOOKBACK_WINDOW
+        if hasattr(cfg, 'TARGET_COLS'): cfg.STUDENT_CONFIG['n_series'] = len(cfg.TARGET_COLS)
+
+    # Update other known model configs if they exist
+    model_configs_to_update = ['NLINEAR_CONFIG', 'LSTM_CONFIG', 'AUTOFORMER_CONFIG', 'PATCHTST_CONFIG', 'DLINEAR_CONFIG'] # Add others as needed
+    if hasattr(cfg, 'TARGET_COLS'): # Only update if TARGET_COLS exists
+        target_cols_len = len(cfg.TARGET_COLS)
+        for config_name in model_configs_to_update:
+            if hasattr(cfg, config_name):
+                model_cfg = getattr(cfg, config_name)
+                if model_cfg: # Check if it's not None
+                    model_cfg['h'] = cfg.PREDICTION_HORIZON
+                    model_cfg['n_series'] = target_cols_len
+                    if 'input_size' in model_cfg: model_cfg['input_size'] = cfg.LOOKBACK_WINDOW
+                    if 'lookback' in model_cfg: model_cfg['lookback'] = cfg.LOOKBACK_WINDOW
+                    if 'output_size' in model_cfg: model_cfg['output_size'] = target_cols_len # For RNN/LSTM
+
+    # Update experiment name
+    teacher_name_part = cfg.TEACHER_MODEL_NAME if cfg.TEACHER_MODEL_NAME else "NoTeacher"
+    cfg.EXPERIMENT_NAME = f"RDT_{cfg.STUDENT_MODEL_NAME}_vs_{teacher_name_part}_h{cfg.PREDICTION_HORIZON}"
+
+    # Ensure required metrics are present
+    required_metrics = ['mse', 'mae', 'mape', 'wape']
+    if not hasattr(cfg, 'METRICS') or not isinstance(cfg.METRICS, list):
+        cfg.METRICS = required_metrics
+    else:
+        # Make a copy to avoid modifying the original list during iteration if needed
+        current_metrics = list(cfg.METRICS)
+        for m in required_metrics:
+            if m not in current_metrics:
+                cfg.METRICS.append(m) # Append to the original cfg.METRICS
+
+    return cfg
 
 def main(args):
     """主函数，处理参数并运行实验"""
-    # --- 加载和合并配置 ---
-    # (如果使用 argparse, 在这里根据 args 更新 cfg)
-    # e.g., default_config.EPOCHS = args.epochs if args.epochs is not None else default_config.EPOCHS
     cfg = default_config
-    print("--- Current Configuration ---")
-    # 打印配置信息 (过滤内置属性和模块对象)
+    cfg = update_config_from_args(cfg, args)
+
+    print("--- Updated Configuration ---")
     for key, value in vars(cfg).items():
+        # Filter out built-ins, callables, modules for cleaner print
         if not key.startswith('__') and not callable(value) and not isinstance(value, type(os)):
             print(f"{key}: {value}")
     print("---------------------------")
 
-    # --- <<< 创建动态实验结果目录 >>> ---
     start_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    try:
-        # 尝试从完整路径中提取数据集文件名（不含扩展名）
-        dataset_name = os.path.splitext(os.path.basename(cfg.DATASET_PATH))[0]
-    except Exception:
-        dataset_name = "unknown_dataset" # 如果提取失败，使用默认名称
-        print(f"Warning: Could not extract dataset name from path '{cfg.DATASET_PATH}'. Using '{dataset_name}'.")
+    dataset_name_for_path = getattr(cfg, 'DATASET_NAME_FOR_RESULT_PATH', 'unknown_dataset')
+    teacher_name_part = cfg.TEACHER_MODEL_NAME if cfg.TEACHER_MODEL_NAME else "NoTeacher"
+    student_name_part = cfg.STUDENT_MODEL_NAME
     experiment_dir = os.path.join(
-        cfg.RESULTS_DIR, # 使用 config.py 中定义的基础结果目录
-        f"{dataset_name}_{cfg.TEACHER_MODEL_NAME}_{cfg.STUDENT_MODEL_NAME}_{start_timestamp}"
+        cfg.RESULTS_DIR,
+        f"{dataset_name_for_path}_{teacher_name_part}_{student_name_part}_h{cfg.PREDICTION_HORIZON}_{start_timestamp}"
     )
-    # 创建实验主目录和子目录
     metrics_dir = os.path.join(experiment_dir, 'metrics')
     models_dir = os.path.join(experiment_dir, 'models')
     plots_dir = os.path.join(experiment_dir, 'plots')
@@ -359,107 +378,123 @@ def main(args):
     print(f"--- Experiment results will be saved to: {experiment_dir} ---")
 
     all_run_results = []
-    start_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    experiment_log_name = f"{cfg.EXPERIMENT_NAME}_{start_timestamp}.csv"
-    main_results_filename = f"all_runs_summary_{start_timestamp}.csv" # 主结果文件名
-    
-    # 检查 CUDA 是否可用
+    # Check CUDA
     if torch.cuda.is_available():
         device = torch.device("cuda")
-        print(f"当前设备: {device}")
-        print(f"使用的 CUDA 设备编号: {torch.cuda.current_device()}")
-        print(f"CUDA 设备名称: {torch.cuda.get_device_name(device)}")
+        print(f"Using device: {device} ({torch.cuda.get_device_name(device)})")
     else:
         device = torch.device("cpu")
-        print(f"当前设备: {device}")
+        print(f"Using device: {device}")
+    cfg.DEVICE = str(device) # Ensure cfg reflects actual device used
 
-    # --- 运行多次实验以评估稳定性 ---
+    # --- Run stability experiments ---
     for i in range(cfg.STABILITY_RUNS):
-        # <<< 传递动态路径给 run_single_experiment >>>
         results = run_single_experiment(cfg, run_id=i, models_dir=models_dir, plots_dir=plots_dir, metrics_dir=metrics_dir)
         if results:
             all_run_results.append(results)
         else:
             print(f"Run {i+1} failed, skipping.")
-        # 强制清理 GPU 缓存 (可能有助于长时间运行)
         if cfg.DEVICE == 'cuda':
             torch.cuda.empty_cache()
 
-    # --- 处理和保存最终结果 ---
+    # --- Process and save final results ---
     if not all_run_results:
         print("\nNo experiments completed successfully.")
         return
 
-    results_df = pd.DataFrame(all_run_results)
+    # --- Calculate and save average metrics ---
+    print("\n--- Calculating Average Metrics Across Runs ---")
+    average_metrics_data = []
+    # Use the keys from the first successful run's metrics dict to determine ran models
+    if not all_run_results: # Check again, just in case
+        print("No successful runs to process for averaging.")
+        return
 
-    # --- 计算稳定性指标 (均值和标准差) ---
-    stability_summary = None
-    if cfg.STABILITY_RUNS > 1:
-        print("\n--- Stability Analysis (Across Runs) ---")
-        # <<< 优化: 基于 cfg.METRICS 选择列 >>>
-        metric_cols_to_summarize = []
-        model_prefixes = ["Teacher", "Student_TaskOnly", "Student_RDT", "Student_Follower"] # 确保与 run_single_experiment 中一致
-        for prefix in model_prefixes:
-            for metric in cfg.METRICS:
-                col_name = f"{prefix}_{metric}"
-                if col_name in results_df.columns:
-                    metric_cols_to_summarize.append(col_name)
-        # <<< ---------------------------- >>>
+    # Find the first successful run to get model keys
+    first_successful_run = next((r for r in all_run_results if r and 'metrics' in r and r['metrics']), None)
+    if not first_successful_run:
+        print("Could not find any successful run with metrics to determine model types.")
+        return
 
-        if metric_cols_to_summarize:
-             stability_summary = results_df[metric_cols_to_summarize].agg(['mean', 'std'])
-             print("--- Stability Summary (Mean & Std) ---")
-             print(stability_summary)
-             summary_save_path = os.path.join(metrics_dir, f"stability_summary_{start_timestamp}.csv")
-             stability_summary.to_csv(summary_save_path)
-             print(f"Stability summary saved to {summary_save_path}")
+    ran_models = list(first_successful_run['metrics'].keys())
+    splits = ['train', 'val', 'test']
+    metrics_to_average = cfg.METRICS
 
-             # --- 绘制稳定性对比图 ---
-             if cfg.METRICS:
-                 print("\n--- Generating Stability Comparison Plots ---")
-                 for metric in cfg.METRICS:
-                     # <<< 调用 plot_stability_comparison >>>
-                     stability_plot_save_path = os.path.join(plots_dir, f"comparison_stability_{metric}_{start_timestamp}.png")
-                     utils.plot_stability_comparison(
-                         results_df,
-                         metric_to_plot=metric, # 指标名称 (mae, mse)
-                         title=f"Stability Comparison ({metric.upper()}) Across {cfg.STABILITY_RUNS} Runs",
-                         save_path=stability_plot_save_path,
-                         plot_type='box' # 或 'violin'
-                     )
-                     # <<< --------------------------------- >>>
-             # ----------------------------
-        else:
-             print("No metric columns found for stability summary based on config.")
+    for model_type in ran_models:
+        for split in splits:
+            for metric_name in metrics_to_average:
+                metric_values = []
+                for run_result in all_run_results:
+                    # Check if run_result and nested keys exist before accessing
+                    if run_result and 'metrics' in run_result and \
+                       model_type in run_result['metrics'] and \
+                       split in run_result['metrics'][model_type] and \
+                       metric_name in run_result['metrics'][model_type][split]:
+                        value = run_result['metrics'][model_type][split][metric_name]
+                        if value is not None and not np.isnan(value):
+                            metric_values.append(value)
+                    # else: # Log missing data less verbosely or handle as needed
+                    #     pass
 
+                if metric_values:
+                    average_value = np.mean(metric_values)
+                    average_metrics_data.append({
+                        'split': split,
+                        'model_type': model_type,
+                        'metric': metric_name,
+                        'value': average_value
+                    })
+                    print(f"  Avg {model_type} - {split} - {metric_name.upper()}: {average_value:.6f}")
+                else:
+                    print(f"  Avg {model_type} - {split} - {metric_name.upper()}: N/A (No valid data across runs)")
+                    average_metrics_data.append({
+                        'split': split,
+                        'model_type': model_type,
+                        'metric': metric_name,
+                        'value': np.nan
+                    })
 
-    # --- 保存所有运行的详细结果 ---
-    all_results_save_path = os.path.join(metrics_dir, main_results_filename)
-    results_df.to_csv(all_results_save_path, index=False)
-    print(f"\nAll run results saved to {all_results_save_path}")
+    # Save average metrics
+    if average_metrics_data:
+        avg_metrics_df = pd.DataFrame(average_metrics_data)
+        # Use the main start_timestamp for the average file name for consistency
+        avg_metrics_save_path = os.path.join(metrics_dir, f"average_metrics_{start_timestamp}.csv")
+        try:
+            avg_metrics_df.to_csv(avg_metrics_save_path, index=False, float_format='%.6f')
+            print(f"\nAverage metrics saved to {avg_metrics_save_path}")
+        except Exception as e:
+            print(f"\nError saving average metrics CSV: {e}")
+    else:
+        print("\nNo average metrics calculated.")
+
+    # --- Optional: Save detailed run results if needed ---
+    # save_detailed_runs = False # Set to True to save detailed run info
+    # if save_detailed_runs:
+    #     try:
+    #         import pickle
+    #         detailed_pickle_path = os.path.join(metrics_dir, f"all_runs_detailed_{start_timestamp}.pkl")
+    #         with open(detailed_pickle_path, 'wb') as f:
+    #             pickle.dump(all_run_results, f)
+    #         print(f"Detailed run results saved to {detailed_pickle_path}")
+    #     except Exception as e:
+    #         print(f"\nError saving detailed run results: {e}")
+
 
     print("\n--- Experiment Finished ---")
-    print(f"Find all results (models, plots, metrics) in: {experiment_dir}") # <<< 指向正确的动态目录
+    print(f"Find results (models, plots, average metrics) in: {experiment_dir}")
 
 
 if __name__ == "__main__":
-    # --- 参数解析 (保持简单，主要使用 config.py) ---
-    parser = argparse.ArgumentParser(description="RDT Framework for Time Series Forecasting")
-    # 可以在这里添加少量关键参数覆盖配置，例如
-    # parser.add_argument('--epochs', type=int, help=f'Override number of training epochs (default: {default_config.EPOCHS})')
-    # parser.add_argument('--device', type=str, choices=['cuda', 'cpu'], help=f'Override device (default: {default_config.DEVICE})')
+    parser = argparse.ArgumentParser(description="Run Time Series Forecasting Experiments with Optional RDT")
+    parser.add_argument('--dataset_path', type=str, help='Path to the dataset CSV file.')
+    parser.add_argument('--prediction_horizon', type=int, help=f'Prediction horizon (default: {default_config.PREDICTION_HORIZON})')
+    parser.add_argument('--lookback_window', type=int, help=f'Lookback window size (default: {default_config.LOOKBACK_WINDOW})')
+    parser.add_argument('--epochs', type=int, help=f'Number of training epochs (default: {default_config.EPOCHS})')
+    parser.add_argument('--stability_runs', type=int, default=default_config.STABILITY_RUNS, help=f'Number of runs for stability analysis (default: {default_config.STABILITY_RUNS})')
+    parser.add_argument('--teacher_model_name', type=str, default=default_config.TEACHER_MODEL_NAME,
+                        help=f'Name of the teacher model (e.g., DLinear, PatchTST, None) (default: {default_config.TEACHER_MODEL_NAME})')
+    parser.add_argument('--student_model_name', type=str, default=default_config.STUDENT_MODEL_NAME,
+                        help=f'Name of the student model (e.g., PatchTST, DLinear) (default: {default_config.STUDENT_MODEL_NAME})')
+
     args = parser.parse_args()
-
-    # --- (可选) 更新配置 ---
-    # if args.epochs is not None: default_config.EPOCHS = args.epochs
-    # if args.device is not None: default_config.DEVICE = args.device
-    # # 确保使用最新的 DEVICE 值
-    # if default_config.DEVICE == 'cuda' and not torch.cuda.is_available():
-    #     print("Warning: CUDA requested but not available, falling back to CPU.")
-    #     default_config.DEVICE = 'cpu'
-    # elif default_config.DEVICE == 'cpu':
-    #      if torch.cuda.is_available():
-    #          print("Info: CPU selected, but CUDA is available. Consider using '--device cuda'.")
-
-    # --- 运行主程序 ---
-    main(args) # 传递解析后的参数（即使为空）
+    main(args)

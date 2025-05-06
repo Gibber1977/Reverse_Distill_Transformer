@@ -21,7 +21,7 @@ LOOKBACK_WINDOW = 96     # 回看窗口大小 (e.g., 4 days for hourly data)
 PREDICTION_HORIZON = 192   # 预测未来步长 (e.g., 1 day for hourly data)
 VAL_SPLIT_RATIO = 0.43    # 验证集比例 (从训练集中划分) - Increased
 TEST_SPLIT_RATIO = 0.3     # 测试集比例 (从总数据末尾划分) - Increased
-BATCH_SIZE = 8192          # 批次大小 (根据 GPU 内存调整) - Reduced significantly
+BATCH_SIZE = 64           # 批次大小 (大幅减小以适应 8GB 显存，尤其是 Transformer 模型)
 NUM_WORKERS = 0           # DataLoader 的工作进程数 (Windows 设为 0 可能更稳定)
 
 # --- 模型配置 ---
@@ -54,7 +54,7 @@ STUDENT_CONFIG = {
 
 # --- 训练配置 ---
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
-EPOCHS = 500              # 最大训练轮数
+EPOCHS = 2             # 最大训练轮数
 LEARNING_RATE = 0.001
 OPTIMIZER = 'Adam'      # 可选 'AdamW', 'SGD' 等
 WEIGHT_DECAY = 1e-5     # L2 正则化 (用于 AdamW)

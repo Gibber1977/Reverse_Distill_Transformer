@@ -132,15 +132,16 @@ class StandardTrainer(BaseTrainer):
         total_loss = 0
         # 使用 tqdm 创建进度条
         train_iterator = tqdm(self.train_loader, desc=f"Epoch {len(self.history['train_loss']) + 1}/{self.epochs} Training", leave=False)
-        for batch_x, batch_y in train_iterator:
+        for batch_x, batch_y, batch_hist_exog, batch_futr_exog in train_iterator:
             batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
 
             self.optimizer.zero_grad()
 
             input_dict = {'insample_y': batch_x}
-            # Add futr_exog=None for models that might expect it (e.g., Autoformer, Informer, FEDformer)
-            # neuralforecast models generally handle None gracefully if the feature is not used.
-            input_dict['futr_exog'] = None
+            # Always add exog keys, setting to None if not provided by loader
+            input_dict['hist_exog'] = batch_hist_exog.to(self.device) if batch_hist_exog is not None else None
+            input_dict['futr_exog'] = batch_futr_exog.to(self.device) if batch_futr_exog is not None else None
+
             outputs = self.model(input_dict) # [batch, horizon, features]
 
             loss = self.loss_fn(outputs, batch_y)
@@ -157,14 +158,16 @@ class StandardTrainer(BaseTrainer):
         total_loss = 0
         val_iterator = tqdm(self.val_loader, desc=f"Epoch {len(self.history['val_loss']) + 1}/{self.epochs} Validation", leave=False)
         with torch.no_grad():
-            for batch_x, batch_y in val_iterator:
+            for batch_x, batch_y, batch_hist_exog, batch_futr_exog in val_iterator:
                 batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
-                
+
                 input_dict = {'insample_y': batch_x}
-                # Add futr_exog=None for models that might expect it
-                input_dict['futr_exog'] = None
+                # Always add exog keys, setting to None if not provided by loader
+                input_dict['hist_exog'] = batch_hist_exog.to(self.device) if batch_hist_exog is not None else None
+                input_dict['futr_exog'] = batch_futr_exog.to(self.device) if batch_futr_exog is not None else None
+
                 outputs = self.model(input_dict)
-    
+
                 loss = self.loss_fn(outputs, batch_y)
                 total_loss += loss.item()
                 val_iterator.set_postfix(loss=loss.item())
@@ -193,21 +196,22 @@ class RDT_Trainer(BaseTrainer):
 
         train_iterator = tqdm(self.train_loader, desc=f"Epoch {current_epoch + 1}/{self.epochs} RDT Training (alpha={alpha:.3f})", leave=False)
 
-        for batch_x, batch_y_true in train_iterator:
+        for batch_x, batch_y_true, batch_hist_exog, batch_futr_exog in train_iterator:
             batch_x, batch_y_true = batch_x.to(self.device), batch_y_true.to(self.device)
+
+            # Prepare input dicts, always including exog keys
+            input_dict_base = {'insample_y': batch_x}
+            input_dict_base['hist_exog'] = batch_hist_exog.to(self.device) if batch_hist_exog is not None else None
+            input_dict_base['futr_exog'] = batch_futr_exog.to(self.device) if batch_futr_exog is not None else None
 
             # 1. 教师模型预测 (不计算梯度)
             with torch.no_grad():
-                input_dict_teacher = {'insample_y': batch_x}
-                # Add futr_exog=None for models that might expect it
-                input_dict_teacher['futr_exog'] = None
+                input_dict_teacher = input_dict_base.copy() # Use copy just in case
                 batch_y_teacher = self.teacher_model(input_dict_teacher)
 
             # 2. 学生模型预测
             self.optimizer.zero_grad()
-            input_dict_student = {'insample_y': batch_x}
-            # Add futr_exog=None for models that might expect it
-            input_dict_student['futr_exog'] = None
+            input_dict_student = input_dict_base.copy() # Use copy just in case
             batch_y_student = self.model(input_dict_student) # self.model is student
 
             # 3. 计算损失
@@ -240,12 +244,14 @@ class RDT_Trainer(BaseTrainer):
         total_task_loss = 0
         val_iterator = tqdm(self.val_loader, desc=f"Epoch {len(self.history['val_loss']) + 1}/{self.epochs} RDT Validation", leave=False)
         with torch.no_grad():
-            for batch_x, batch_y_true in val_iterator:
+            for batch_x, batch_y_true, batch_hist_exog, batch_futr_exog in val_iterator:
                 batch_x, batch_y_true = batch_x.to(self.device), batch_y_true.to(self.device)
-                
+
                 input_dict = {'insample_y': batch_x}
-                # Add futr_exog=None for models that might expect it
-                input_dict['futr_exog'] = None
+                # Always add exog keys, setting to None if not provided by loader
+                input_dict['hist_exog'] = batch_hist_exog.to(self.device) if batch_hist_exog is not None else None
+                input_dict['futr_exog'] = batch_futr_exog.to(self.device) if batch_futr_exog is not None else None
+
                 batch_y_student = self.model(input_dict)
 
                 loss_task = self.loss_fn(batch_y_student, batch_y_true) # 只计算 Task Loss

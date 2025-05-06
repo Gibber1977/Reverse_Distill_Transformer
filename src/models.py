@@ -21,34 +21,16 @@ def get_model(model_name, model_config, is_teacher=False):
     print(f"Initializing {'Teacher' if is_teacher else 'Student'} model: {model_name}")
     print(f"Model Config: {model_config}")
 
-    # 确保配置中的关键参数与全局配置一致
-    # 这些参数将在下面的 if/elif 块中根据模型类型添加到 cfg 副本中
-    # model_config['input_size'] = config.LOOKBACK_WINDOW # Removed
-    # model_config['h'] = config.PREDICTION_HORIZON       # Removed
-    # model_config['n_series'] = len(config.TARGET_COLS)  # Removed
-
+    # 全局配置
     lookback = config.LOOKBACK_WINDOW
     horizon = config.PREDICTION_HORIZON
     n_series = len(config.TARGET_COLS)
 
-    # Copy config to avoid modifying the original dict in config.py
-    cfg = model_config.copy()
-    
-    if model_name in ['DLinear', 'PatchTST', 'NLinear', 'Autoformer', 'Informer', 'FEDformer']:
-        cfg['input_size'] = lookback
-        cfg['h'] = horizon
-        cfg['n_series'] = n_series
-    elif model_name in ['MLP']:
-        cfg['input_size'] = lookback
-        cfg['h'] = horizon
-        cfg['n_series'] = n_series
-    elif model_name in ['RNN', 'LSTM']:
-        cfg['lookback'] = lookback
-        cfg['h'] = horizon
-        cfg['n_series'] = n_series # Used as RNN/LSTM input_size (features)
-        cfg['output_size'] = n_series # Output features per step
-    
-    print(f"Model Config (after applying global settings): {cfg}")
+    # 使用原始 model_config，避免修改
+    cfg = model_config # Use the original config passed
+
+    print(f"Using Base Config: {cfg}")
+    print(f"Global Params: lookback={lookback}, horizon={horizon}, n_series={n_series}")
 
     # --- 可以添加其他模型的选择 ---
     # elif model_name == 'NLinear':
@@ -59,25 +41,44 @@ def get_model(model_name, model_config, is_teacher=False):
     # --- Model Instantiation ---
     model = None
     if model_name == 'DLinear':
+        # NeuralForecast models often expect input_size, h, n_series
+        # Ensure cfg has the correct input_size, h, n_series (handled in main.py update_config)
         model = DLinear(**cfg)
     elif model_name == 'PatchTST':
+        # Ensure cfg has the correct input_size, h, n_series
         model = PatchTST(**cfg)
     elif model_name == 'NLinear':
+        # Ensure cfg has the correct input_size, h, n_series
         model = NLinear(**cfg)
     elif model_name == 'MLP':
-        # Use custom MLP implementation
-        model = MLPModel(**cfg)
+        # Custom MLP expects specific args from its __init__
+        model = MLPModel(input_size=lookback, h=horizon, n_series=n_series,
+                         hidden_size=cfg.get('hidden_size', 512),
+                         num_layers=cfg.get('num_layers', 2),
+                         activation=cfg.get('activation', 'relu'),
+                         dropout=cfg.get('dropout', 0.1))
     elif model_name == 'RNN':
-        # Use custom RNN implementation
-        model = RNNModel(**cfg)
+        # Custom RNN expects specific args
+        model = RNNModel(n_series=n_series, lookback=lookback, h=horizon,
+                         hidden_size=cfg.get('hidden_size', 128),
+                         num_layers=cfg.get('num_layers', 2),
+                         dropout=cfg.get('dropout', 0.1),
+                         output_size=n_series) # Assuming output size matches n_series
     elif model_name == 'LSTM':
-        # Use custom LSTM implementation
-        model = LSTMModel(**cfg)
+        # Custom LSTM expects specific args
+        model = LSTMModel(n_series=n_series, lookback=lookback, h=horizon,
+                          hidden_size=cfg.get('hidden_size', 128),
+                          num_layers=cfg.get('num_layers', 2),
+                          dropout=cfg.get('dropout', 0.1),
+                          output_size=n_series) # Assuming output size matches n_series
     elif model_name == 'Autoformer':
+        # Ensure cfg has the correct input_size, h, n_series
         model = Autoformer(**cfg)
     elif model_name == 'Informer':
+        # Ensure cfg has the correct input_size, h, n_series
         model = Informer(**cfg)
     elif model_name == 'FEDformer':
+        # Ensure cfg has the correct input_size, h, n_series
         model = FEDformer(**cfg)
     elif model_name == 'ARIMA':
         if not _STATSMODELS_AVAILABLE:
