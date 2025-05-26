@@ -22,8 +22,8 @@ class Config:
         self.PREDICTION_HORIZON = 192
         self.VAL_SPLIT_RATIO = 0.43
         self.TEST_SPLIT_RATIO = 0.3
-        self.BATCH_SIZE = 64
-        self.NUM_WORKERS = 0
+        self.BATCH_SIZE = 128 # Increased for better GPU utilization
+        self.NUM_WORKERS = 4  # Increased for faster data loading
 
         # --- 模型配置 ---
         self.TEACHER_MODEL_NAME = 'DLinear'
@@ -57,6 +57,7 @@ class Config:
         self.WEIGHT_DECAY = 1e-5
         self.PATIENCE = 50
         self.LOSS_FN = 'MSE'
+        self.USE_AMP = True # Enable Automatic Mixed Precision (AMP)
 
         # --- RDT 配置 ---
         self.ALPHA_START = 0.3

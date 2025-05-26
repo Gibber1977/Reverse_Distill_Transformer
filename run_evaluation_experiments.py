@@ -74,8 +74,9 @@ def run_experiment(
     all_similarity_results = []
 
     for run_idx in range(stability_runs):
-        logger.info(f"--- Stability Run {run_idx + 1}/{stability_runs} ---")
-        set_seed(42 + run_idx) # 每次运行使用不同的种子
+        current_seed = 42 + run_idx
+        logger.info(f"--- Stability Run {run_idx + 1}/{stability_runs} (Seed: {current_seed}) ---")
+        set_seed(current_seed) # 每次运行使用不同的种子
         results = {} # 初始化当前运行的结果字典
         similarity_results = {} # 初始化当前运行的相似度结果字典
 
@@ -84,7 +85,7 @@ def run_experiment(
         # 处理 teacher_model_name 为 None 或空字符串的情况
         teacher_name_for_dir = teacher_model_name if teacher_model_name else "NoTeacher"
         
-        experiment_results_subdir_name = (
+        base_experiment_name = (
             f"{dataset_name}_{teacher_name_for_dir}_{student_model_name}_"
             f"h{pred_horizon}_noise{noise_level}_smooth{smoothing_factor}_"
             f"{current_timestamp}"
@@ -92,9 +93,14 @@ def run_experiment(
         
         # 确保 base_output_dir 存在
         if base_output_dir is None:
-            base_output_dir = "results/experiments" # 默认值，以防万一
+            base_output_dir = "results" # 默认值，以防万一
 
-        experiment_results_dir = os.path.join(base_output_dir, experiment_results_subdir_name)
+        # 创建包含时间戳和参数的父目录
+        parent_experiment_dir = os.path.join(base_output_dir, base_experiment_name)
+        os.makedirs(parent_experiment_dir, exist_ok=True)
+
+        # 在父目录下创建包含运行索引和种子的子目录
+        experiment_results_dir = os.path.join(parent_experiment_dir, f"run{run_idx}_seed_{current_seed}")
 
         # 加载和预处理数据
         config = Config()

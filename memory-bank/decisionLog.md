@@ -143,3 +143,20 @@ This file records architectural and implementation decisions using a list format
 
 *   在 `predict` 函数的开头添加了 `if not isinstance(model, torch.nn.Module):` 检查。
 *   如果类型不匹配，则抛出 `TypeError`，并提供详细的错误消息。
+
+---
+
+## Decision
+
+*   **优化实验结果文件夹命名，包含随机种子和运行索引**
+
+## Rationale
+
+*   为了提高实验结果的复现性，确保每次稳定性运行（Stability Run）的结果都能追溯到其使用的随机种子。
+*   避免在 `STABILITY_RUNS` 存在时，多个运行结果存储在同一个父文件夹下，导致文件重复或覆盖。
+
+## Implementation Details
+
+*   在 `run_evaluation_experiments.py` 的 `run_experiment` 函数中，为每个稳定性运行创建了一个新的子文件夹。
+*   子文件夹的命名格式为 `runX_seed_Y`，其中 `X` 是运行的索引（从0开始），`Y` 是该运行使用的随机种子。
+*   所有与该次运行相关的模型、绘图和日志文件都将保存到这个新的子文件夹中。

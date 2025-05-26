@@ -82,3 +82,4 @@ This file tracks the project's progress using a task list format.
 * 2025-05-26 21:27:30 - 完成 `run_evaluation_experiments.py` 中噪音注入和平滑处理的配置修改。
 * 2025-05-27 00:15:10 - 完成 `README.md` 文档更新。
 * [2025-05-27 01:21:59] - 完成 `run_evaluation_experiments.py` 脚本修改任务，使其在保存模型和结果时，使用新的命名格式。
+* [2025-05-27 01:36:02] - 进一步优化 `run_evaluation_experiments.py`，在结果文件夹命名中包含随机种子和运行索引，以提高结果复现性。
