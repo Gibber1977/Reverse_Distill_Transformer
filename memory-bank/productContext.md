@@ -15,9 +15,10 @@ This file provides a high-level overview of the project and the expected product
 * **模块化与可配置性**: 清晰的代码结构(数据、模型、训练器、评估器等)和中心化的配置(src/config.py)
 * **标准数据处理流程**: 包含时间序列数据加载、预处理、划分和DataLoader构建
 * **Alpha调度策略**: 支持多种Alpha动态调整策略(linear, exponential)或固定值(constant)
-* **多维度评估**: 计算常用预测指标、支持鲁棒性测试和稳定性分析
+* **多维度评估**: 计算常用预测指标、支持鲁棒性测试和稳定性分析，包括模型抗噪音效果、数据去噪效果和学生-教师模型相似度评估
 * **丰富的可视化**: 训练/验证损失曲线、预测对比图、性能指标图表等
 * **自动化结果管理**: 实验结果自动保存到结构化的结果目录
+* **动态Alpha调度增强**: 允许基于验证集性能和模型输出相似度动态调整Alpha权重
 
 ## Overall Architecture
 

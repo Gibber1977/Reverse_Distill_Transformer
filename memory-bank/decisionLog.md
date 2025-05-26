@@ -54,3 +54,92 @@ This file records architectural and implementation decisions using a list format
 * 自定义实现了MLP、RNN和LSTM模型
 * 设计了统一的模型接口，支持一致的训练和评估流程
 * 提供了模型工厂函数（get_model）以简化模型实例化
+---
+
+## Decision
+
+*   **在 `src/config.py` 中增加了噪音注入、数据平滑和模型相似度评估的配置项**
+
+## Rationale
+
+*   为了支持新功能，包括模型抗噪音效果评估、数据去噪效果评估和学生-教师模型相似度评估，以及动态 Alpha 调度。
+
+## Implementation Details
+
+*   `NOISE_INJECTION_LEVELS` 和 `NOISE_TYPE` 用于数据增强和鲁棒性测试。
+*   `SMOOTHING_METHOD` 和 `SMOOTHING_FACTOR` 用于数据预处理。
+*   `SIMILARITY_METRIC` 用于学生-教师模型输出的相似度计算。
+---
+
+## Decision
+
+*   **在 `src/data_handler.py` 中增加了噪音注入和数据平滑/合成的逻辑**
+
+## Rationale
+
+*   为了支持数据增强和鲁棒性测试，以及提供数据预处理的灵活性。
+
+## Implementation Details
+
+*   添加了 `add_noise` 函数，支持高斯、椒盐和泊松噪声。
+*   添加了 `smooth_data` 函数，支持移动平均和指数平滑。
+*   修改了 `load_and_preprocess_data` 函数，在数据标准化之前应用平滑，在标准化之后对训练数据应用噪音注入。
+---
+
+## Decision
+
+*   **在 `src/evaluator.py` 中增加了余弦相似度计算函数和 `calculate_similarity_metrics` 函数，并修改 `evaluate_model` 以集成学生-教师相似度评估**
+
+## Rationale
+
+*   为了支持学生模型和教师模型预测结果之间的相似度评估，这是动态 Alpha 调度的一个重要输入。
+
+## Implementation Details
+
+*   添加了 `cosine_similarity` 函数用于计算余弦相似度。
+*   添加了 `calculate_similarity_metrics` 函数，根据配置的相似度指标计算学生和教师预测之间的相似度。
+*   修改了 `evaluate_model` 函数，使其接受可选的 `teacher_predictions_original` 参数，并在提供时调用 `calculate_similarity_metrics`。
+---
+
+## Decision
+
+*   **修改 `src/trainer.py` 中的 `RDT_Trainer`，使其在验证阶段收集学生模型、教师模型和真实标签的预测结果，并将其传递给 Alpha 调度器进行动态调整**
+
+## Rationale
+
+*   为了实现基于验证集信息（包括模型相似度）动态调整 Alpha 权重的功能，Alpha 调度器需要访问这些预测结果。
+
+## Implementation Details
+
+*   在 `_validate_epoch` 方法中，除了计算任务损失外，还收集了学生模型预测 (`batch_y_student`)、教师模型预测 (`batch_y_teacher`) 和真实标签 (`batch_y_true`)。
+*   这些收集到的预测结果在每个验证 epoch 结束时被传递给 `self.alpha_scheduler.update()` 方法。
+---
+
+## Decision
+
+*   **修改 `src/schedulers.py` 中的 `AlphaScheduler` 基类及其子类，增加 `update` 方法，允许基于验证集信息（包括模型相似度）动态调整 Alpha 权重**
+
+## Rationale
+
+*   为了实现更智能的 Alpha 调度策略，允许调度器根据训练过程中的实时反馈（如验证损失和模型预测相似度）来调整 Alpha 值。
+
+## Implementation Details
+
+*   在 `BaseAlphaScheduler` 中添加了 `update` 抽象方法，接收 `current_epoch`, `val_loss`, `student_preds`, `teacher_preds`, `true_labels` 作为参数。
+*   在 `ConstantScheduler`, `LinearScheduler`, `ExponentialScheduler` 的 `update` 方法中，目前只是一个 `pass` 操作，表示这些调度器不进行动态调整。未来可以根据需求实现更复杂的动态调度策略。
+
+---
+
+## Decision
+
+*   **在 `src/evaluator.py` 的 `predict` 函数中添加类型检查**
+
+## Rationale
+
+*   为了增强 `predict` 函数的健壮性，确保其接收到的 `model` 参数确实是一个 PyTorch 模型实例。
+*   在 `run_quick_test_evaluation.py` 运行时，`predict` 函数在调用 `model.eval()` 时，`model` 参数有时会是一个 `numpy.ndarray` 对象，导致 `AttributeError`。这表明调用方错误地传递了参数。通过添加类型检查，可以在更早的阶段捕获此类错误，并提供更清晰的错误信息。
+
+## Implementation Details
+
+*   在 `predict` 函数的开头添加了 `if not isinstance(model, torch.nn.Module):` 检查。
+*   如果类型不匹配，则抛出 `TypeError`，并提供详细的错误消息。

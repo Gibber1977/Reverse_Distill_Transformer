@@ -6,15 +6,17 @@ import argparse
 from datetime import datetime
 import matplotlib.pyplot as plt
 import warnings
+import logging # 新增导入
 
 # --- 导入自定义模块 ---
 from src import config as default_config
-from src import utils # 确保 utils.py 中包含新的绘图函数
+from src import utils
+from src.utils import setup_logging # 明确导入 setup_logging
 from src.data_handler import load_and_preprocess_data
 from src.models import get_teacher_model, get_student_model
 from src.trainer import StandardTrainer, RDT_Trainer, get_optimizer, get_loss_function
-from src.schedulers import get_alpha_scheduler, ConstantScheduler # 明确导入 ConstantScheduler
-from src.evaluator import evaluate_robustness, calculate_metrics, predict # 移除 evaluate_model, 因为评估逻辑已整合
+from src.schedulers import get_alpha_scheduler, ConstantScheduler
+from src.evaluator import evaluate_robustness, calculate_metrics, predict
 
 
 def run_single_experiment(cfg, run_id, models_dir, plots_dir, metrics_dir):
@@ -354,12 +356,14 @@ def main(args):
     cfg = default_config
     cfg = update_config_from_args(cfg, args)
 
-    print("--- Updated Configuration ---")
+    # 在配置更新后，立即设置日志
+    setup_logging(cfg.LOG_FILE_PATH, cfg.LOG_LEVEL)
+    logging.info("--- Updated Configuration ---")
     for key, value in vars(cfg).items():
         # Filter out built-ins, callables, modules for cleaner print
-        if not key.startswith('__') and not callable(value) and not isinstance(value, type(os)):
-            print(f"{key}: {value}")
-    print("---------------------------")
+        if not key.startswith('__') and not callable(value) and not isinstance(value, type(os)) and key not in ['__builtins__', '__cached__', '__doc__', '__file__', '__loader__', '__name__', '__package__', '__spec__']:
+            logging.info(f"{key}: {value}")
+    logging.info("---------------------------")
 
     start_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     dataset_name_for_path = getattr(cfg, 'DATASET_NAME_FOR_RESULT_PATH', 'unknown_dataset')
@@ -375,16 +379,16 @@ def main(args):
     os.makedirs(metrics_dir, exist_ok=True)
     os.makedirs(models_dir, exist_ok=True)
     os.makedirs(plots_dir, exist_ok=True)
-    print(f"--- Experiment results will be saved to: {experiment_dir} ---")
+    logging.info(f"--- Experiment results will be saved to: {experiment_dir} ---")
 
     all_run_results = []
     # Check CUDA
     if torch.cuda.is_available():
         device = torch.device("cuda")
-        print(f"Using device: {device} ({torch.cuda.get_device_name(device)})")
+        logging.info(f"Using device: {device} ({torch.cuda.get_device_name(device)})")
     else:
         device = torch.device("cpu")
-        print(f"Using device: {device}")
+        logging.info(f"Using device: {device}")
     cfg.DEVICE = str(device) # Ensure cfg reflects actual device used
 
     # --- Run stability experiments ---
@@ -393,27 +397,27 @@ def main(args):
         if results:
             all_run_results.append(results)
         else:
-            print(f"Run {i+1} failed, skipping.")
+            logging.warning(f"Run {i+1} failed, skipping.")
         if cfg.DEVICE == 'cuda':
             torch.cuda.empty_cache()
 
     # --- Process and save final results ---
     if not all_run_results:
-        print("\nNo experiments completed successfully.")
+        logging.info("\nNo experiments completed successfully.")
         return
 
     # --- Calculate and save average metrics ---
-    print("\n--- Calculating Average Metrics Across Runs ---")
+    logging.info("\n--- Calculating Average Metrics Across Runs ---")
     average_metrics_data = []
     # Use the keys from the first successful run's metrics dict to determine ran models
     if not all_run_results: # Check again, just in case
-        print("No successful runs to process for averaging.")
+        logging.info("No successful runs to process for averaging.")
         return
 
     # Find the first successful run to get model keys
     first_successful_run = next((r for r in all_run_results if r and 'metrics' in r and r['metrics']), None)
     if not first_successful_run:
-        print("Could not find any successful run with metrics to determine model types.")
+        logging.warning("Could not find any successful run with metrics to determine model types.")
         return
 
     ran_models = list(first_successful_run['metrics'].keys())
@@ -444,9 +448,9 @@ def main(args):
                         'metric': metric_name,
                         'value': average_value
                     })
-                    print(f"  Avg {model_type} - {split} - {metric_name.upper()}: {average_value:.6f}")
+                    logging.info(f"  Avg {model_type} - {split} - {metric_name.upper()}: {average_value:.6f}")
                 else:
-                    print(f"  Avg {model_type} - {split} - {metric_name.upper()}: N/A (No valid data across runs)")
+                    logging.info(f"  Avg {model_type} - {split} - {metric_name.upper()}: N/A (No valid data across runs)")
                     average_metrics_data.append({
                         'split': split,
                         'model_type': model_type,
@@ -461,11 +465,11 @@ def main(args):
         avg_metrics_save_path = os.path.join(metrics_dir, f"average_metrics_{start_timestamp}.csv")
         try:
             avg_metrics_df.to_csv(avg_metrics_save_path, index=False, float_format='%.6f')
-            print(f"\nAverage metrics saved to {avg_metrics_save_path}")
+            logging.info(f"\nAverage metrics saved to {avg_metrics_save_path}")
         except Exception as e:
-            print(f"\nError saving average metrics CSV: {e}")
+            logging.error(f"\nError saving average metrics CSV: {e}")
     else:
-        print("\nNo average metrics calculated.")
+        logging.info("\nNo average metrics calculated.")
 
     # --- Optional: Save detailed run results if needed ---
     # save_detailed_runs = False # Set to True to save detailed run info
@@ -475,13 +479,13 @@ def main(args):
     #         detailed_pickle_path = os.path.join(metrics_dir, f"all_runs_detailed_{start_timestamp}.pkl")
     #         with open(detailed_pickle_path, 'wb') as f:
     #             pickle.dump(all_run_results, f)
-    #         print(f"Detailed run results saved to {detailed_pickle_path}")
+    #         logging.info(f"Detailed run results saved to {detailed_pickle_path}")
     #     except Exception as e:
-    #         print(f"\nError saving detailed run results: {e}")
+    #         logging.error(f"\nError saving detailed run results: {e}")
 
 
-    print("\n--- Experiment Finished ---")
-    print(f"Find results (models, plots, average metrics) in: {experiment_dir}")
+    logging.info("\n--- Experiment Finished ---")
+    logging.info(f"Find results (models, plots, average metrics) in: {experiment_dir}")
 
 
 if __name__ == "__main__":

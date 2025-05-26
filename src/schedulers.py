@@ -9,6 +9,19 @@ class BaseAlphaScheduler:
     def get_alpha(self, current_epoch):
         raise NotImplementedError
 
+    def update(self, current_epoch, val_loss, student_preds, teacher_preds, true_labels):
+        """
+        根据验证集信息（如验证损失、模型预测）动态调整 alpha。
+        此方法在基类中默认不实现，由需要动态调整的子类实现。
+        参数:
+            current_epoch (int): 当前的 epoch 编号。
+            val_loss (float): 当前 epoch 的验证损失。
+            student_preds (torch.Tensor): 学生模型在验证集上的预测结果。
+            teacher_preds (torch.Tensor): 教师模型在验证集上的预测结果。
+            true_labels (torch.Tensor): 验证集上的真实标签。
+        """
+        pass # 默认不执行任何操作
+
 class ConstantScheduler(BaseAlphaScheduler):
     def __init__(self, alpha_value, total_epochs):
         super().__init__(alpha_value, alpha_value, total_epochs) # start 和 end 相同
@@ -17,6 +30,10 @@ class ConstantScheduler(BaseAlphaScheduler):
 
     def get_alpha(self, current_epoch):
         return self.alpha_value
+
+    def update(self, current_epoch, val_loss, student_preds, teacher_preds, true_labels):
+        # 对于固定调度器，update 方法不执行任何操作
+        pass
 
 class LinearScheduler(BaseAlphaScheduler):
     def __init__(self, alpha_start, alpha_end, total_epochs):
@@ -30,6 +47,10 @@ class LinearScheduler(BaseAlphaScheduler):
         progress = min(current_epoch / (self.total_epochs - 1), 1.0)
         alpha = self.alpha_start + (self.alpha_end - self.alpha_start) * progress
         return alpha
+
+    def update(self, current_epoch, val_loss, student_preds, teacher_preds, true_labels):
+        # 对于线性调度器，update 方法不执行任何操作
+        pass
 
 class ExponentialScheduler(BaseAlphaScheduler):
     def __init__(self, alpha_start, alpha_end, total_epochs):
@@ -54,6 +75,10 @@ class ExponentialScheduler(BaseAlphaScheduler):
         alpha = self.alpha_start * (self.rate ** current_epoch)
         # 限制 alpha 不超过 alpha_end (防止浮点误差导致略微超出)
         return min(alpha, self.alpha_end) if self.rate > 1.0 else max(alpha, self.alpha_end)
+
+    def update(self, current_epoch, val_loss, student_preds, teacher_preds, true_labels):
+        # 对于指数调度器，update 方法不执行任何操作
+        pass
 
 
 def get_alpha_scheduler(cfg):

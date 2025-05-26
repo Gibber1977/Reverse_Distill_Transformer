@@ -1,5 +1,7 @@
 # Progress
 
+2025-05-26 14:35:50 - 为模型抗噪音效果评估、数据去噪效果评估、Simi(Student,Teacher)评估以及增强Alpha调度器功能提供了详细的规范和伪代码。
+
 This file tracks the project's progress using a task list format.
 2025-05-26 13:10:00 - Log of updates made.
 
@@ -24,3 +26,50 @@ This file tracks the project's progress using a task list format.
 * 优化数据预处理流程，特别是针对不同类型的时间序列数据
 * 增强可视化能力，提供更直观的实验结果展示
 * 改进文档，添加更详细的使用说明和API参考
+* 2025-05-26 17:44:00 - 决定暂不实现模型结构图可视化，因为这需要额外的库依赖（如 `graphviz`）且集成到训练流程中较为复杂。建议用户如果需要，可以手动使用 `torchviz` 或 `netron` 等工具生成。
+* 2025-05-26 17:45:00 - 完成了详细的参数记录机制，包括实验元数据、模型架构参数、训练配置参数和数据处理参数的保存。
+* 2025-05-26 14:43:44 - 完成了 `src/evaluator.py` 中学生-教师相似度评估功能的实现。
+* 2025-05-26 14:44:21 - 完成了 `src/schedulers.py` 中 `AlphaScheduler` 基类及其子类 `update` 方法的文档更新。
+* 2025-05-26 14:44:21 - 完成了 `src/trainer.py` 中 `RDT_Trainer` 在验证阶段收集预测结果并传递给 Alpha 调度器的实现。
+* 2025-05-26 14:44:21 - 完成了 `src/data_handler.py` 中噪音注入和数据平滑/合成逻辑的实现。
+* 2025-05-26 14:44:21 - 完成了 `src/config.py` 中噪音、平滑和相似度配置项的添加和修改。
+- 2025-05-26 下午2:45:18 - 开始编写新功能文档。
+- 2025-05-26 下午2:45:49 - 完成新功能文档 `docs/new_features.md` 的编写。
+* 2025-05-26 15:18:08 - 完成了训练过程中的输出日志增强和日志文件保存功能。
+* 2025-05-26 15:24:26 - 完成了 `run_evaluation_experiments.py` 脚本的编写，实现了全面的模型评估实验功能。
+* 2025-05-26 15:25:29 - 完成了 `run_quick_test_evaluation.py` 脚本的编写，用于快速验证代码和实验脚本的有效性。
+* 2025-05-26 15:27:41 - 尝试运行 `run_quick_test_evaluation.py` 以验证 `ImportError` 修复。
+* 2025-05-26 15:28:53 - 修复 `src/trainer.py` 中 `calculate_similarity` 的导入错误，将其更正为 `calculate_similarity_metrics`，并更新了相关函数调用。
+* 2025-05-26 15:29:33 - 在 `src/utils.py` 中添加了 `save_results_to_csv` 函数。
+* 2025-05-26 15:30:13 - 在 `src/utils.py` 中添加了 `save_plot` 函数。
+* 2025-05-26 15:31:04 - 修复 `src/data_handler.py` 中 `load_and_preprocess_data` 函数的签名，使其接受 `dataset_path` 和 `logger` 参数，并替换了内部的 `print` 语句。
+* 2025-05-26 15:32:32 - 修复 `run_evaluation_experiments.py` 中 `load_and_preprocess_data` 函数的解包错误，并更新 `get_model` 的调用。
+* 2025-05-26 15:33:19 - 修复 `src/models.py` 中 `get_model` 函数的 `AttributeError`，使其接收 `Config` 实例并正确访问其属性，并删除了 `get_teacher_model` 和 `get_student_model` 函数。
+* 2025-05-26 16:40:07 - 修复 `run_evaluation_experiments.py` 中 `StandardTrainer` 和 `RDT_Trainer` 的初始化参数。
+* 2025-05-26 16:40:51 - 修复 `run_quick_test_evaluation.py` 中 `NameError`，导入了 `get_optimizer`, `get_loss_function` 和 `get_alpha_scheduler`。
+* 2025-05-26 16:42:43 - 修复 `src/config.py` 中的 `RuntimeError`，添加 `update_model_configs` 方法并在 `run_quick_test_evaluation.py` 和 `run_evaluation_experiments.py` 中调用。
+* 2025-05-26 16:43:55 - 修复 `src/trainer.py` 中 `evaluate_model` 函数的 `TypeError`，使其 `__init__` 方法接受 `scaler` 参数，并在 `_validate_epoch` 中正确调用 `evaluate_model`。
+* 2025-05-26 16:44:39 - 修复 `run_evaluation_experiments.py` 中 `StandardTrainer` 和 `RDT_Trainer` 的初始化参数，传入 `scaler`。
+* 2025-05-26 16:46:09 - 修复 `run_quick_test_evaluation.py` 和 `run_evaluation_experiments.py` 中 `evaluate_model` 函数的调用，传入正确的参数并处理教师模型预测。
+* 2025-05-26 16:50:58 - 修复 `run_evaluation_experiments.py` 中 `evaluate_model` 函数的调用，传入正确的参数并处理教师模型预测。
+* 2025-05-26 17:00:22 - 在 `src/evaluator.py` 的 `predict` 函数中添加了类型检查，以确保 `model` 参数是 `torch.nn.Module` 的实例。
+* 2025-05-26 17:01:38 - 完成了 `src/trainer.py` 中 `_validate_epoch` 函数的修改，以确保 `evaluate_model` 接收到正确的 `model` 对象和 `dataloader`。
+* 2025-05-26 17:04:39 - 完成对 `src/evaluator.py` 和 `src/trainer.py` 中所有必要代码的修复。
+* 2025-05-26 17:05:30 - 完成对 `run_quick_test_evaluation.py` 中 `StandardTrainer` 实例化参数的修复。
+* 2025-05-26 17:07:55 - 完成对 `run_quick_test_evaluation.py` 中 `evaluate_model` 调用参数的修复。
+* 2025-05-26 17:08:56 - 完成对 `src/trainer.py` 中 `train` 函数的修复，正确处理 `_validate_epoch` 返回的元组。
+* 2025-05-26 17:10:13 - 完成对 `src/trainer.py` 中 `_validate_epoch` 返回值的修复。
+* 2025-05-26 17:11:09 - 完成对 `run_quick_test_evaluation.py` 中 `evaluate_model` 调用参数的修复，移除 `logger` 参数。
+* 2025-05-26 17:12:05 - 完成对 `run_quick_test_evaluation.py` 中目录创建的修复。
+* 2025-05-26 17:13:14 - 完成对 `run_quick_test_evaluation.py` 中 `results` 和 `similarity_results` 字典初始化的修复。
+* 2025-05-26 17:16:47 - 完成对 `src/trainer.py` 中 `RDT_Trainer._validate_epoch` 调用 `evaluate_model` 参数的修复。
+* 2025-05-26 17:18:49 - 完成对 `run_quick_test_evaluation.py` 中 `RDT_Trainer` 实例化参数的修复。
+* 2025-05-26 17:20:21 - 完成对 `run_quick_test_evaluation.py` 中 `TaskOnly` 模型的 `RDT_Trainer` 实例化参数的修复。
+* 2025-05-26 17:21:15 - 完成对 `src/trainer.py` 中 `RDT_Trainer._validate_epoch` 调用 `calculate_similarity_metrics` 参数名的修复。
+* 2025-05-26 17:23:15 - 完成对 `src/trainer.py` 中 `RDT_Trainer._validate_epoch` 返回值的修复。
+* 2025-05-26 17:24:46 - 完成对 `src/trainer.py` 中 `RDT_Trainer._validate_epoch` 相似度指标处理的修复。
+* 2025-05-26 17:30:03 - 完成对 `run_evaluation_experiments.py` 的所有必要修复。
+* 2025-05-26 17:40:00 - 完成了核心训练指标（训练损失、验证损失、学习率、梯度范数和评估指标）的可视化功能。
+* 2025-05-26 17:41:00 - 完成了模型权重和偏置分布的可视化功能。
+* 2025-05-26 17:43:00 - 完成了增强预测结果与真实值对比的可视化功能（包括残差分析和误差分布图）。
+* [2025-05-26 18:07:26] - 完成 `src/utils.py` 中 `plot_predictions` 函数的 `title` 和 `save_path` 未定义警告修复。

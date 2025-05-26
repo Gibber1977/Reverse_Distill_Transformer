@@ -6,6 +6,8 @@ import time
 import os
 from tqdm import tqdm # 进度条库
 from src import config, utils
+import logging
+from src.evaluator import evaluate_model, calculate_similarity_metrics
 
 class EarlyStopping:
     """早停机制，防止过拟合"""
@@ -68,7 +70,7 @@ def get_loss_function(cfg):
 
 class BaseTrainer:
     """训练器的基类，包含通用训练和验证逻辑"""
-    def __init__(self, model, train_loader, val_loader, optimizer, loss_fn, device, epochs, patience, model_save_path, model_name="Model"):
+    def __init__(self, model, train_loader, val_loader, optimizer, loss_fn, device, epochs, patience, model_save_path, scaler, config_obj, model_name="Model"):
         self.model = model.to(device)
         self.train_loader = train_loader
         self.val_loader = val_loader
@@ -78,8 +80,11 @@ class BaseTrainer:
         self.epochs = epochs
         self.model_save_path = model_save_path
         self.model_name = model_name
+        self.scaler = scaler # Add scaler to instance attributes
+        self.scaler = scaler
+        self.config = config_obj # Add config object to instance attributes
         self.early_stopping = EarlyStopping(patience=patience, verbose=True, path=model_save_path)
-        self.history = {'train_loss': [], 'val_loss': []}
+        self.history = {'train_loss': [], 'val_loss': [], 'lr': [], 'grad_norm': []}
 
     def _train_epoch(self):
         raise NotImplementedError
@@ -88,44 +93,62 @@ class BaseTrainer:
         raise NotImplementedError
 
     def train(self):
-        print(f"\n--- Starting Training for {self.model_name} ---")
+        logging.info(f"\n--- Starting Training for {self.model_name} ---")
         start_time = time.time()
         for epoch in range(self.epochs):
             epoch_start_time = time.time()
 
             # --- 训练 ---
-            train_loss = self._train_epoch()
+            train_loss, grad_norm = self._train_epoch()
             self.history['train_loss'].append(train_loss)
+            self.history['grad_norm'].append(grad_norm)
+            self.history['lr'].append(self.optimizer.param_groups[0]['lr']) # 记录当前学习率
 
             # --- 验证 ---
-            val_loss = self._validate_epoch()
+            val_loss, metrics_dict, _, _ = self._validate_epoch() # _validate_epoch 现在返回损失、指标、真实值和预测值
             self.history['val_loss'].append(val_loss)
+            # 记录验证指标
+            for metric_name, value in metrics_dict.items():
+                if f'val_{metric_name}' not in self.history:
+                    self.history[f'val_{metric_name}'] = []
+                self.history[f'val_{metric_name}'].append(value)
 
             epoch_duration = time.time() - epoch_start_time
-            print(f"Epoch {epoch+1}/{self.epochs} | Train Loss: {train_loss:.6f} | Val Loss: {val_loss:.6f} | Time: {epoch_duration:.2f}s")
+            log_message = f"Epoch {epoch+1}/{self.epochs} | Train Loss: {train_loss:.6f} | Val Loss: {val_loss:.6f}"
+            for metric_name, value in metrics_dict.items():
+                log_message += f" | Val {metric_name.upper()}: {value:.6f}"
+            log_message += f" | Time: {epoch_duration:.2f}s"
+            logging.info(log_message)
 
             # --- 早停检查 ---
             self.early_stopping(val_loss, self.model)
             if self.early_stopping.early_stop:
-                print("Early stopping triggered.")
+                logging.info("Early stopping triggered.")
                 break
 
         total_time = time.time() - start_time
-        print(f"--- Training Finished for {self.model_name} ---")
-        print(f"Total Training Time: {total_time:.2f}s")
-        print(f"Best validation loss achieved: {self.early_stopping.val_loss_min:.6f}")
-        print(f"Model saved to: {self.model_save_path}")
+        logging.info(f"--- Training Finished for {self.model_name} ---")
+        logging.info(f"Total Training Time: {total_time:.2f}s")
+        logging.info(f"Best validation loss achieved: {self.early_stopping.val_loss_min:.6f}")
+        logging.info(f"Model saved to: {self.model_save_path}")
 
         # 加载性能最好的模型
         self.model = utils.load_model(self.model, self.model_save_path, self.device)
+
+        # 绘制训练指标曲线
+        plot_save_dir = os.path.join(self.config.PLOTS_DIR, self.model_name.lower().replace(" ", "_"))
+        utils.plot_training_metrics(self.history, plot_save_dir, self.model_name)
+        
+        # 绘制权重和偏置分布
+        utils.plot_weights_biases_distribution(self.model, plot_save_dir, self.model_name)
 
         return self.model, self.history
 
 
 class StandardTrainer(BaseTrainer):
     """标准训练流程 (用于教师模型或基线学生模型)"""
-    def __init__(self, model, train_loader, val_loader, optimizer, loss_fn, device, epochs, patience, model_save_path, model_name="StandardModel"):
-        super().__init__(model, train_loader, val_loader, optimizer, loss_fn, device, epochs, patience, model_save_path, model_name)
+    def __init__(self, model, train_loader, val_loader, optimizer, loss_fn, device, epochs, patience, model_save_path, scaler, config_obj, model_name="StandardModel"):
+        super().__init__(model, train_loader, val_loader, optimizer, loss_fn, device, epochs, patience, model_save_path, scaler, config_obj, model_name)
 
     def _train_epoch(self):
         self.model.train()
@@ -151,18 +174,27 @@ class StandardTrainer(BaseTrainer):
             total_loss += loss.item()
             train_iterator.set_postfix(loss=loss.item()) # 在进度条上显示当前 batch loss
 
-        return total_loss / len(self.train_loader)
+        # 计算梯度范数
+        total_grad_norm = 0
+        for p in self.model.parameters():
+            if p.grad is not None:
+                total_grad_norm += p.grad.norm().item() ** 2
+        total_grad_norm = total_grad_norm ** 0.5
+
+        return total_loss / len(self.train_loader), total_grad_norm
 
     def _validate_epoch(self):
         self.model.eval()
         total_loss = 0
+        all_preds = []
+        all_true_labels = []
+
         val_iterator = tqdm(self.val_loader, desc=f"Epoch {len(self.history['val_loss']) + 1}/{self.epochs} Validation", leave=False)
         with torch.no_grad():
             for batch_x, batch_y, batch_hist_exog, batch_futr_exog in val_iterator:
                 batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
 
                 input_dict = {'insample_y': batch_x}
-                # Always add exog keys, setting to None if not provided by loader
                 input_dict['hist_exog'] = batch_hist_exog.to(self.device) if batch_hist_exog is not None else None
                 input_dict['futr_exog'] = batch_futr_exog.to(self.device) if batch_futr_exog is not None else None
 
@@ -172,13 +204,22 @@ class StandardTrainer(BaseTrainer):
                 total_loss += loss.item()
                 val_iterator.set_postfix(loss=loss.item())
 
-        return total_loss / len(self.val_loader)
+                all_preds.append(outputs.cpu())
+                all_true_labels.append(batch_y.cpu())
+
+        avg_val_loss = total_loss / len(self.val_loader)
+        
+        preds_all = torch.cat(all_preds, dim=0).numpy()
+        true_labels_all = torch.cat(all_true_labels, dim=0).numpy()
+        val_metrics = evaluate_model(self.model, self.val_loader, device=self.device, scaler=self.scaler, config_obj=self.config)
+
+        return avg_val_loss, val_metrics[0], val_metrics[1], val_metrics[2]
 
 
 class RDT_Trainer(BaseTrainer):
     """RDT 训练流程"""
-    def __init__(self, student_model, teacher_model, train_loader, val_loader, optimizer, task_loss_fn, distill_loss_fn, alpha_scheduler, device, epochs, patience, model_save_path, model_name="RDT_Student"):
-        super().__init__(student_model, train_loader, val_loader, optimizer, task_loss_fn, device, epochs, patience, model_save_path, model_name) # loss_fn 作为 task_loss_fn
+    def __init__(self, student_model, teacher_model, train_loader, val_loader, optimizer, task_loss_fn, distill_loss_fn, alpha_scheduler, device, epochs, patience, model_save_path, scaler, config_obj, model_name="RDT_Student"):
+        super().__init__(student_model, train_loader, val_loader, optimizer, task_loss_fn, device, epochs, patience, model_save_path, scaler, config_obj, model_name) # loss_fn 作为 task_loss_fn
         self.teacher_model = teacher_model.to(device).eval() # 教师模型设为评估模式且不训练
         self.distill_loss_fn = distill_loss_fn
         self.alpha_scheduler = alpha_scheduler
@@ -224,6 +265,12 @@ class RDT_Trainer(BaseTrainer):
 
             # 5. 反向传播和优化 (只更新学生模型)
             loss_total.backward()
+            # 计算梯度范数
+            total_grad_norm = 0
+            for p in self.model.parameters():
+                if p.grad is not None:
+                    total_grad_norm += p.grad.norm().item() ** 2
+            total_grad_norm = total_grad_norm ** 0.5
             self.optimizer.step()
 
             total_loss += loss_total.item()
@@ -234,14 +281,21 @@ class RDT_Trainer(BaseTrainer):
         avg_total_loss = total_loss / len(self.train_loader)
         avg_task_loss = total_task_loss / len(self.train_loader)
         avg_distill_loss = total_distill_loss / len(self.train_loader)
-        print(f"Epoch {current_epoch+1} Avg Train Losses: Total={avg_total_loss:.6f}, Task={avg_task_loss:.6f}, Distill={avg_distill_loss:.6f}")
+        logging.info(f"Epoch {current_epoch+1} Avg Train Losses: Total={avg_total_loss:.6f}, Task={avg_task_loss:.6f}, Distill={avg_distill_loss:.6f}")
+        logging.info(f"Current Alpha: {alpha:.6f}") # Log alpha
 
-        return avg_total_loss # 返回总损失用于记录，但早停基于验证集 Task Loss
+        return avg_total_loss, total_grad_norm # 返回总损失和梯度范数
 
     def _validate_epoch(self):
         # RDT 的验证通常只关心学生模型在真实任务上的表现 (Task Loss)
         self.model.eval()
+        self.teacher_model.eval() # 确保教师模型也处于评估模式
         total_task_loss = 0
+        
+        all_student_preds = []
+        all_teacher_preds = []
+        all_true_labels = []
+
         val_iterator = tqdm(self.val_loader, desc=f"Epoch {len(self.history['val_loss']) + 1}/{self.epochs} RDT Validation", leave=False)
         with torch.no_grad():
             for batch_x, batch_y_true, batch_hist_exog, batch_futr_exog in val_iterator:
@@ -253,11 +307,37 @@ class RDT_Trainer(BaseTrainer):
                 input_dict['futr_exog'] = batch_futr_exog.to(self.device) if batch_futr_exog is not None else None
 
                 batch_y_student = self.model(input_dict)
+                batch_y_teacher = self.teacher_model(input_dict) # 获取教师模型预测
 
                 loss_task = self.loss_fn(batch_y_student, batch_y_true) # 只计算 Task Loss
                 total_task_loss += loss_task.item()
                 val_iterator.set_postfix(val_task_loss=loss_task.item())
 
+                all_student_preds.append(batch_y_student.cpu())
+                all_teacher_preds.append(batch_y_teacher.cpu())
+                all_true_labels.append(batch_y_true.cpu())
+
         avg_val_loss = total_task_loss / len(self.val_loader)
+        
+        # 将所有批次的预测结果连接起来
+        student_preds_all = torch.cat(all_student_preds, dim=0).numpy()
+        teacher_preds_all = torch.cat(all_teacher_preds, dim=0).numpy()
+        true_labels_all = torch.cat(all_true_labels, dim=0).numpy()
+
+        # 计算验证集上的评估指标
+        val_metrics, _, _ = evaluate_model(
+            self.model, self.val_loader, self.device, self.scaler, self.config,
+            model_name=self.model_name, plots_dir=os.path.join(self.config.RESULTS_DIR, "plots"),
+            teacher_predictions_original=teacher_preds_all
+        )
+        # 计算学生-教师相似度
+        simi_student_teacher = calculate_similarity_metrics(student_preds_all, teacher_preds_all, metric_type=self.config.SIMILARITY_METRIC)
+        val_metrics.update(simi_student_teacher) # 将相似度指标直接合并到 val_metrics 字典中
+
+        # 在这里将收集到的预测结果传递给 Alpha 调度器进行更新
+        # AlphaScheduler 的 update 方法需要这些信息来动态调整 alpha
+        current_epoch = len(self.history['val_loss']) # 验证阶段的当前 epoch
+        self.alpha_scheduler.update(current_epoch, avg_val_loss, student_preds_all, teacher_preds_all, true_labels_all)
+
         # 注意：早停是基于这个验证 Task Loss
-        return avg_val_loss
+        return avg_val_loss, val_metrics, true_labels_all, student_preds_all # 返回所有需要的值

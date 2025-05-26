@@ -16,20 +16,39 @@ except ImportError:
     _STATSMODELS_AVAILABLE = False
     print("Warning: statsmodels not found. ARIMA and VAR models will not be available.")
 
-def get_model(model_name, model_config, is_teacher=False):
+def get_model(model_name, config_instance):
     """根据名称和配置获取模型实例"""
-    print(f"Initializing {'Teacher' if is_teacher else 'Student'} model: {model_name}")
-    print(f"Model Config: {model_config}")
+    print(f"Initializing model: {model_name}")
+    print(f"Model Config: {config_instance}")
 
-    # 全局配置
-    lookback = config.LOOKBACK_WINDOW
-    horizon = config.PREDICTION_HORIZON
-    n_series = len(config.TARGET_COLS)
+    # 从 config_instance 获取全局配置
+    lookback = config_instance.LOOKBACK_WINDOW
+    horizon = config_instance.PREDICTION_HORIZON
+    n_series = len(config_instance.TARGET_COLS)
 
-    # 使用原始 model_config，避免修改
-    cfg = model_config # Use the original config passed
+    # 根据模型名称选择对应的配置字典
+    if model_name == 'DLinear':
+        cfg = config_instance.TEACHER_CONFIG if model_name == config_instance.TEACHER_MODEL_NAME else config_instance.STUDENT_CONFIG
+    elif model_name == 'PatchTST':
+        cfg = config_instance.STUDENT_CONFIG
+    elif model_name == 'NLinear':
+        cfg = config_instance.NLINEAR_CONFIG
+    elif model_name == 'MLP':
+        cfg = config_instance.MLP_CONFIG
+    elif model_name == 'RNN':
+        cfg = config_instance.RNN_CONFIG
+    elif model_name == 'LSTM':
+        cfg = config_instance.LSTM_CONFIG
+    elif model_name == 'Autoformer':
+        cfg = config_instance.AUTOFORMER_CONFIG
+    elif model_name == 'Informer':
+        cfg = config_instance.INFORMER_CONFIG
+    elif model_name == 'FEDformer':
+        cfg = config_instance.FEDFORMER_CONFIG
+    else:
+        cfg = {} # Fallback, though should be handled by ValueError below
 
-    print(f"Using Base Config: {cfg}")
+    print(f"Using specific model config: {cfg}")
     print(f"Global Params: lookback={lookback}, horizon={horizon}, n_series={n_series}")
 
     # --- 可以添加其他模型的选择 ---
@@ -114,13 +133,6 @@ def get_model(model_name, model_config, is_teacher=False):
         print(f"{model_name} model initialized (non-nn.Module or parameter counting failed).")
     return model
 
-def get_teacher_model(cfg):
-    """获取教师模型实例"""
-    return get_model(cfg.TEACHER_MODEL_NAME, cfg.TEACHER_CONFIG.copy(), is_teacher=True)
-
-def get_student_model(cfg):
-    """获取学生模型实例"""
-    return get_model(cfg.STUDENT_MODEL_NAME, cfg.STUDENT_CONFIG.copy(), is_teacher=False)
 
 # --- 可以在这里添加自定义模型实现 ---
 # class YourCustomModel(nn.Module):
