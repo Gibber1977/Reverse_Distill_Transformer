@@ -180,3 +180,5 @@ cython_debug/
 
 # ignore the results of the tests
 results/
+results_quick_test/
+version.ipynb
