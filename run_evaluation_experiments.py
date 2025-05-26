@@ -78,21 +78,18 @@ def run_experiment(
         similarity_results = {} # 初始化当前运行的相似度结果字典
 
         # 加载和预处理数据
-        config = Config(
-            LOOKBACK_WINDOW=lookback_window,
-            PREDICTION_HORIZON=pred_horizon,
-            TEACHER_MODEL_NAME=teacher_model_name,
-            STUDENT_MODEL_NAME=student_model_name,
-            EPOCHS=epochs,
-            TRAIN_NOISE_INJECTION_LEVEL=noise_level,
-            NOISE_TYPE=noise_type,
-            SMOOTHING_FACTOR=smoothing_factor,
-            SMOOTHING_METHOD=smoothing_method,
-            SIMILARITY_METRIC='cosine_similarity' # 固定为余弦相似度
-        )
-
-        # 更新模型配置，确保 LOOKBACK_WINDOW 和 PREDICTION_HORIZON 的变化生效
-        config.update_model_configs()
+        config = Config()
+        config.LOOKBACK_WINDOW = lookback_window
+        config.PREDICTION_HORIZON = pred_horizon
+        config.TEACHER_MODEL_NAME = teacher_model_name
+        config.STUDENT_MODEL_NAME = student_model_name
+        config.EPOCHS = epochs
+        config.TRAIN_NOISE_INJECTION_LEVEL = noise_level
+        config.NOISE_TYPE = noise_type
+        config.SMOOTHING_FACTOR = smoothing_factor
+        config.SMOOTHING_METHOD = smoothing_method
+        config.SIMILARITY_METRIC = 'cosine_similarity' # 保持与run_quick_test_evaluation.py一致
+        config.update_model_configs() # 更新依赖于这些值的模型配置
 
         # 确保结果和绘图目录存在
         os.makedirs(config.RESULTS_DIR, exist_ok=True)
