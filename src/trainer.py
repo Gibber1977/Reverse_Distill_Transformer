@@ -326,15 +326,15 @@ class RDT_Trainer(BaseTrainer):
         avg_val_loss = total_task_loss / len(self.val_loader)
         
         # 将所有批次的预测结果连接起来
-        student_preds_all = torch.cat(all_student_preds, dim=0).numpy()
-        teacher_preds_all = torch.cat(all_teacher_preds, dim=0).numpy()
-        true_labels_all = torch.cat(all_true_labels, dim=0).numpy()
+        student_preds_all = torch.cat(all_student_preds, dim=0)
+        teacher_preds_all = torch.cat(all_teacher_preds, dim=0)
+        true_labels_all = torch.cat(all_true_labels, dim=0)
 
         # 将 scaled 的预测结果逆变换回原始尺度，以便计算相似度
         # evaluate_model 内部会处理 student_preds_all 的逆变换
         # 但 teacher_preds_all 需要在这里逆变换，因为 evaluate_model 不会处理它
         n_samples, horizon, n_features = teacher_preds_all.shape
-        teacher_preds_reshaped = teacher_preds_all.view(-1, n_features).numpy()
+        teacher_preds_reshaped = teacher_preds_all.view(-1, n_features)
         try:
             teacher_preds_original = self.scaler.inverse_transform(teacher_preds_reshaped)
         except Exception as e:

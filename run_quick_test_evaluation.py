@@ -132,7 +132,7 @@ def run_experiment(
 
         # 评估 Teacher 模型
         teacher_metrics, teacher_true_original, teacher_preds_original = evaluate_model(
-            teacher_model, test_loader, config.DEVICE, scaler, config,
+            teacher_model, test_loader, config.DEVICE, scaler, config, logger,
             model_name=teacher_model_name, plots_dir=os.path.join(config.RESULTS_DIR, "plots"),
         )
         for metric, value in teacher_metrics.items():
@@ -164,7 +164,7 @@ def run_experiment(
 
         # 评估 TaskOnly 模型
         task_only_metrics, _, task_only_preds_original = evaluate_model(
-            task_only_trainer.model, test_loader, config.DEVICE, scaler, config,
+            task_only_trainer.model, test_loader, config.DEVICE, scaler, config, logger,
             model_name=f"{student_model_name}_TaskOnly", plots_dir=os.path.join(config.RESULTS_DIR, "plots"),
             teacher_predictions_original=teacher_preds_original, # Pass teacher's original predictions
         )
@@ -198,7 +198,7 @@ def run_experiment(
 
         # 评估 Follower 模型
         follower_metrics, _, follower_preds_original = evaluate_model(
-            follower_trainer.model, test_loader, config.DEVICE, scaler, config,
+            follower_trainer.model, test_loader, config.DEVICE, scaler, config, logger,
             model_name=f"{student_model_name}_Follower", plots_dir=os.path.join(config.RESULTS_DIR, "plots"),
             teacher_predictions_original=teacher_preds_original, # Pass teacher's original predictions
         )
@@ -232,7 +232,7 @@ def run_experiment(
 
         # 评估 RDT 模型
         rdt_metrics, _, rdt_preds_original = evaluate_model(
-            rdt_trainer.model, test_loader, config.DEVICE, scaler, config,
+            rdt_trainer.model, test_loader, config.DEVICE, scaler, config, logger,
             model_name=f"{student_model_name}_RDT", plots_dir=os.path.join(config.RESULTS_DIR, "plots"),
             teacher_predictions_original=teacher_preds_original, # Pass teacher's original predictions
         )
