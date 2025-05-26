@@ -160,3 +160,27 @@ This file records architectural and implementation decisions using a list format
 *   在 `run_evaluation_experiments.py` 的 `run_experiment` 函数中，为每个稳定性运行创建了一个新的子文件夹。
 *   子文件夹的命名格式为 `runX_seed_Y`，其中 `X` 是运行的索引（从0开始），`Y` 是该运行使用的随机种子。
 *   所有与该次运行相关的模型、绘图和日志文件都将保存到这个新的子文件夹中。
+
+---
+
+## Decision
+
+*   **优化和规范化实验结果保存结构，采用多层级目录结构设计**
+
+## Rationale
+
+*   原有的实验结果保存结构不够系统化，使得对比不同参数组合下的实验结果变得困难
+*   目录名称中包含时间戳会使得路径过长，并且降低了实验结果的可读性和可比较性
+*   需要一个更加结构化和标准化的目录结构，便于后续分析和对比不同实验条件下的结果
+*   让实验的组织和检索更加直观，提高研究效率
+
+## Implementation Details
+
+*   重新设计了结果保存结构为多层级目录：
+    1. 根目录使用时间戳命名：`results/experiments_YYYYMMDD_HHMMSS/`
+    2. 实验总览文件 `experiment_overview.json` 和结果CSV文件保存在根目录
+    3. 实验组合目录不再包含时间戳，采用参数组合命名：`dataset_Teacher_Student_hX_noiseN_smoothM/`
+    4. 稳定性运行子目录标准化为：`runX_seed_YY/`
+    5. 模型权重和绘图保存在相应的稳定性运行子目录中
+*   修改了 `run_evaluation_experiments.py` 中的 `run_experiment()` 和 `main()` 函数，调整目录创建和路径引用逻辑
+*   新增了直接生成 `experiment_overview.json` 的代码，确保实验配置信息完整保存

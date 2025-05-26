@@ -81,21 +81,20 @@ def run_experiment(
         similarity_results = {} # 初始化当前运行的相似度结果字典
 
         # 生成唯一的实验结果子文件夹
-        current_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         # 处理 teacher_model_name 为 None 或空字符串的情况
         teacher_name_for_dir = teacher_model_name if teacher_model_name else "NoTeacher"
         
+        # 不再包含时间戳的实验组合目录名
         base_experiment_name = (
             f"{dataset_name}_{teacher_name_for_dir}_{student_model_name}_"
-            f"h{pred_horizon}_noise{noise_level}_smooth{smoothing_factor}_"
-            f"{current_timestamp}"
+            f"h{pred_horizon}_noise{noise_level}_smooth{smoothing_factor}"
         )
         
         # 确保 base_output_dir 存在
         if base_output_dir is None:
             base_output_dir = "results" # 默认值，以防万一
 
-        # 创建包含时间戳和参数的父目录
+        # 创建仅包含参数的父目录（不含时间戳）
         parent_experiment_dir = os.path.join(base_output_dir, base_experiment_name)
         os.makedirs(parent_experiment_dir, exist_ok=True)
 
@@ -320,10 +319,13 @@ def run_experiment(
     return all_run_results, all_similarity_results
 
 def main():
+    # 创建带时间戳的根目录
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     base_results_dir = f"results/experiments_{timestamp}"
     os.makedirs(base_results_dir, exist_ok=True)
 
+    # 确保log文件夹存在
+    os.makedirs("log", exist_ok=True)
     log_file = os.path.join("log", f"experiment_log_{timestamp}.log")
     logger = setup_logging(log_file)
 
@@ -339,7 +341,47 @@ def main():
     current_config.SMOOTHING_FACTORS = SMOOTHING_FACTORS
     current_config.update_model_configs() # 确保模型配置是最新的
     
-    save_experiment_metadata(current_config, base_results_dir, f"experiment_{timestamp}")
+    # 保存实验总览文件到根目录
+    metadata_path = os.path.join(base_results_dir, "experiment_overview.json")
+    
+    # 直接生成实验总览文件，而不是依赖save_experiment_metadata函数的默认命名
+    metadata = {}
+    # 遍历Config对象的所有属性
+    for attr_name in dir(current_config):
+        if not attr_name.startswith('__') and not callable(getattr(current_config, attr_name)):
+            attr_value = getattr(current_config, attr_name)
+            # 尝试将所有可序列化的属性添加到元数据中
+            try:
+                # 对于字典，进行深拷贝以避免修改原始配置
+                if isinstance(attr_value, dict):
+                    metadata[attr_name] = attr_value.copy()
+                else:
+                    metadata[attr_name] = attr_value
+            except TypeError:
+                # 如果属性不可序列化，则跳过或转换为字符串
+                metadata[attr_name] = str(attr_value)
+    
+    # 移除一些不必要的或敏感的路径信息
+    if 'BASE_DIR' in metadata:
+        del metadata['BASE_DIR']
+    if 'LOG_FILE_PATH' in metadata:
+        del metadata['LOG_FILE_PATH']
+    
+    # 添加实验相关的额外信息
+    metadata['EXPERIMENT_TIMESTAMP'] = timestamp
+    metadata['DATASETS'] = list(DATASETS.keys())
+    metadata['PREDICTION_HORIZONS'] = PREDICTION_HORIZONS
+    metadata['MODELS'] = MODELS
+    metadata['NOISE_LEVELS'] = NOISE_LEVELS
+    metadata['SMOOTHING_FACTORS'] = SMOOTHING_FACTORS
+    
+    try:
+        import json
+        with open(metadata_path, 'w') as f:
+            json.dump(metadata, f, indent=4)
+        logger.info(f"实验总览保存到: {metadata_path}")
+    except Exception as e:
+        logger.error(f"保存实验总览时出错: {e}")
 
     all_experiment_results = []
     all_experiment_similarity_results = []
@@ -360,7 +402,7 @@ def main():
                     dataset_name, dataset_path, pred_horizon, LOOKBACK_WINDOW, EPOCHS, STABILITY_RUNS,
                     teacher_model, student_model,
                     experiment_type='standard', logger=logger,
-                    base_output_dir="results"
+                    base_output_dir=base_results_dir
                 )
                 all_experiment_results.extend(run_results)
                 all_experiment_similarity_results.extend(sim_results)
@@ -373,7 +415,7 @@ def main():
                         teacher_model, student_model,
                         noise_level=noise_level, noise_type=NOISE_TYPE,
                         experiment_type='noise_injection', logger=logger,
-                        base_output_dir="results"
+                        base_output_dir=base_results_dir
                     )
                     all_experiment_results.extend(run_results)
                     all_experiment_similarity_results.extend(sim_results)
@@ -386,7 +428,7 @@ def main():
                         teacher_model, student_model,
                         smoothing_factor=smoothing_factor, smoothing_method=SMOOTHING_METHOD,
                         experiment_type='denoising_smoothing', logger=logger,
-                        base_output_dir="results"
+                        base_output_dir=base_results_dir
                     )
                     all_experiment_results.extend(run_results)
                     all_experiment_similarity_results.extend(sim_results)
@@ -395,9 +437,11 @@ def main():
     logger.info("All experiments completed.")
 
     # 保存所有结果
+    # 保存所有结果到根目录的CSV文件
     results_df = pd.DataFrame(all_experiment_results)
     similarity_df = pd.DataFrame(all_experiment_similarity_results)
 
+    # 使用标准化的文件名
     results_csv_path = os.path.join(base_results_dir, "experiment_results.csv")
     similarity_csv_path = os.path.join(base_results_dir, "similarity_results.csv")
 
