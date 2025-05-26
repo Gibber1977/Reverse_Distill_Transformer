@@ -77,6 +77,7 @@ class Config:
         self.SMOOTHING_FACTOR = 0.5
         self.SMOOTHING_APPLY_TRAIN = False
         self.SMOOTHING_APPLY_VAL = False
+        self.SMOOTHING_APPLY_TEST = False
 
         self.SIMILARITY_METRIC = 'cosine_similarity'
 

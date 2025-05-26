@@ -98,7 +98,7 @@ def run_experiment(
         # 根据实验类型调整数据处理
         if experiment_type == 'noise_injection':
             # 噪音注入在 load_and_preprocess_data 内部处理
-            pass
+            config.VAL_NOISE_INJECTION_LEVEL = noise_level
         elif experiment_type == 'denoising_smoothing':
             # 平滑处理在 load_and_preprocess_data 内部处理
             pass
@@ -107,6 +107,16 @@ def run_experiment(
             config.NOISE_TYPE = None
             config.SMOOTHING_FACTOR = 0
             config.SMOOTHING_METHOD = None
+            config.SMOOTHING_APPLY_TEST = False # Standard experiment should not smooth test data
+        
+        if experiment_type == 'denoising_smoothing':
+            config.SMOOTHING_APPLY_TEST = True # Denoising smoothing should apply smoothing to test data
+            config.SMOOTHING_APPLY_TRAIN = True
+            config.SMOOTHING_APPLY_VAL = True
+        else:
+            config.SMOOTHING_APPLY_TEST = False # Other experiments should not smooth test data
+            config.SMOOTHING_APPLY_TRAIN = False
+            config.SMOOTHING_APPLY_VAL = False
 
         train_loader, val_loader, test_loader, scaler = load_and_preprocess_data(
             dataset_path, config, logger
@@ -137,8 +147,9 @@ def run_experiment(
 
         # 评估 Teacher 模型
         teacher_metrics, teacher_true_original, teacher_preds_original = evaluate_model(
-            teacher_model, test_loader, config.DEVICE, scaler, config,
-            model_name=teacher_model_name, plots_dir=os.path.join(config.RESULTS_DIR, "plots")
+            teacher_model, test_loader, config.DEVICE, scaler, config, logger,
+            model_name=teacher_model_name, plots_dir=os.path.join(config.RESULTS_DIR, "plots"),
+            dataset_type="Test Set"
         )
         for metric, value in teacher_metrics.items():
             results[f'Teacher_{metric}'] = value
@@ -169,9 +180,10 @@ def run_experiment(
 
         # 评估 TaskOnly 模型
         task_only_metrics, _, task_only_preds_original = evaluate_model(
-            task_only_trainer.model, test_loader, config.DEVICE, scaler, config,
+            task_only_trainer.model, test_loader, config.DEVICE, scaler, config, logger,
             model_name=f"{student_model_name}_TaskOnly", plots_dir=os.path.join(config.RESULTS_DIR, "plots"),
-            teacher_predictions_original=teacher_preds_original # Pass teacher's original predictions
+            teacher_predictions_original=teacher_preds_original, # Pass teacher's original predictions
+            dataset_type="Test Set"
         )
         for metric, value in task_only_metrics.items():
             results[f'TaskOnly_{metric}'] = value
@@ -203,9 +215,10 @@ def run_experiment(
 
         # 评估 Follower 模型
         follower_metrics, _, follower_preds_original = evaluate_model(
-            follower_trainer.model, test_loader, config.DEVICE, scaler, config,
+            follower_trainer.model, test_loader, config.DEVICE, scaler, config, logger,
             model_name=f"{student_model_name}_Follower", plots_dir=os.path.join(config.RESULTS_DIR, "plots"),
-            teacher_predictions_original=teacher_preds_original # Pass teacher's original predictions
+            teacher_predictions_original=teacher_preds_original, # Pass teacher's original predictions
+            dataset_type="Test Set"
         )
         for metric, value in follower_metrics.items():
             results[f'Follower_{metric}'] = value
@@ -237,9 +250,10 @@ def run_experiment(
 
         # 评估 RDT 模型
         rdt_metrics, _, rdt_preds_original = evaluate_model(
-            rdt_trainer.model, test_loader, config.DEVICE, scaler, config,
+            rdt_trainer.model, test_loader, config.DEVICE, scaler, config, logger,
             model_name=f"{student_model_name}_RDT", plots_dir=os.path.join(config.RESULTS_DIR, "plots"),
-            teacher_predictions_original=teacher_preds_original # Pass teacher's original predictions
+            teacher_predictions_original=teacher_preds_original, # Pass teacher's original predictions
+            dataset_type="Test Set"
         )
         for metric, value in rdt_metrics.items():
             results[f'RDT_{metric}'] = value

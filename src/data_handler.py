@@ -225,8 +225,12 @@ def load_and_preprocess_data(dataset_path, cfg, logger):
     else:
         val_data_smoothed = val_data_raw
 
-    # 测试集通常不进行平滑，除非是去噪评估的一部分，这里保持不变
-    test_data_smoothed = test_data_raw 
+    # 测试集通常不进行平滑，除非是去噪评估的一部分
+    if cfg.SMOOTHING_APPLY_TEST and cfg.SMOOTHING_METHOD != 'none':
+        logger.info(f"Applying smoothing to test data: method='{cfg.SMOOTHING_METHOD}', factor={cfg.SMOOTHING_FACTOR}")
+        test_data_smoothed = smooth_data(test_data_raw, cfg.SMOOTHING_METHOD, cfg.SMOOTHING_FACTOR)
+    else:
+        test_data_smoothed = test_data_raw
 
     # --- 5. 数据标准化 ---
     scaler = StandardScaler()

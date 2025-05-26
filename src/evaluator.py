@@ -152,18 +152,21 @@ def predict(model, dataloader, device):
     # 返回真实值和预测结果
     return true_values, predictions # 返回 torch tensors
 
-def evaluate_model(model, dataloader, device, scaler, config_obj, model_name="Model", plots_dir=".", teacher_predictions_original=None):
+def evaluate_model(model, dataloader, device, scaler, config_obj, logger, model_name="Model", plots_dir=".", teacher_predictions_original=None, dataset_type="Test Set"):
     """
-    在测试集上评估模型性能，并可选地计算学生-教师模型相似度。
+    在指定数据集上评估模型性能，并可选地计算学生-教师模型相似度。
     model: 要评估的模型 (学生模型)
-    dataloader: 测试数据加载器
+    dataloader: 数据加载器 (可以是验证集或测试集)
     device: 计算设备
     scaler: 用于逆变换的 StandardScaler
+    config_obj: 配置对象
+    logger: 日志记录器
     model_name: 模型名称
     plots_dir: 绘图保存目录
     teacher_predictions_original: 可选，教师模型在相同数据上的原始尺度预测结果 (numpy array)，用于计算相似度
+    dataset_type: 字符串，表示正在评估的数据集类型 (例如 "Validation Set" 或 "Test Set")
     """
-    print(f"\n--- Evaluating {model_name} on Test Set ---")
+    logger.info(f"\n--- Evaluating {model_name} on {dataset_type} ---")
     true_values_scaled, predictions_scaled = predict(model, dataloader, device)
 
     # --- 逆变换回原始尺度 ---
@@ -177,8 +180,8 @@ def evaluate_model(model, dataloader, device, scaler, config_obj, model_name="Mo
         predictions_original = scaler.inverse_transform(pred_reshaped)
         true_values_original = scaler.inverse_transform(true_reshaped)
     except Exception as e:
-        print(f"Error during inverse transform: {e}")
-        print("Using scaled values for metric calculation.")
+        logger.error(f"Error during inverse transform: {e}")
+        logger.warning("Using scaled values for metric calculation.")
         predictions_original = pred_reshaped
         true_values_original = true_reshaped
 
@@ -190,17 +193,17 @@ def evaluate_model(model, dataloader, device, scaler, config_obj, model_name="Mo
     # --- 计算指标 ---
     # --- 计算指标 ---
     metrics = calculate_metrics(true_values_original, predictions_original, config_obj.METRICS)
-    print(f"Evaluation Metrics for {model_name} (Original Scale):")
+    logger.info(f"Evaluation Metrics for {model_name} (Original Scale):")
     for key, value in metrics.items():
-        print(f"  {key.upper()}: {value:.6f}")
+        logger.info(f"  {key.upper()}: {value:.6f}")
 
     # --- 计算学生-教师模型相似度 (如果提供了教师预测) ---
     if teacher_predictions_original is not None:
-        print(f"\n--- Calculating Student-Teacher Similarity ({config_obj.SIMILARITY_METRIC}) ---")
+        logger.info(f"\n--- Calculating Student-Teacher Similarity ({config_obj.SIMILARITY_METRIC}) ---")
         similarity_metrics = calculate_similarity_metrics(predictions_original, teacher_predictions_original, config_obj.SIMILARITY_METRIC)
         metrics.update(similarity_metrics)
         for key, value in similarity_metrics.items():
-            print(f"  {key.replace('_', ' ').title()}: {value:.6f}")
+            logger.info(f"  {key.replace('_', ' ').title()}: {value:.6f}")
 
     # --- 保存预测结果和真实值 (可选，用于详细分析) ---
     # np.save(os.path.join(config.RESULTS_DIR, f"{model_name}_preds.npy"), predictions_original)
@@ -233,9 +236,9 @@ def evaluate_model(model, dataloader, device, scaler, config_obj, model_name="Mo
                                   plot_type='violin') # 绘制小提琴图
 
 
-def evaluate_robustness(model, dataloader, device, scaler, noise_levels, config_obj, model_name="Model", metrics_dir="."):
+def evaluate_robustness(model, dataloader, device, scaler, noise_levels, config_obj, logger, model_name="Model", metrics_dir="."):
     """评估模型在不同噪声水平下的鲁棒性"""
-    print(f"\n--- Evaluating Robustness for {model_name} ---")
+    logger.info(f"\n--- Evaluating Robustness for {model_name} ---")
     robustness_results = {}
 
     # 获取原始的、干净的测试集预测和真实值 (用于比较)
@@ -245,7 +248,7 @@ def evaluate_robustness(model, dataloader, device, scaler, noise_levels, config_
     # ... (inside evaluate_robustness function) ...
 
     for noise_level in noise_levels:
-        print(f"  Testing with noise level (std ratio): {noise_level}")
+        logger.info(f"  Testing with noise level (std ratio): {noise_level}")
         noisy_preds_list = []
         noisy_trues_list = [] # 真实值也需要保留对应关系
 
@@ -299,7 +302,7 @@ def evaluate_robustness(model, dataloader, device, scaler, noise_levels, config_
             predictions_original_noisy = scaler.inverse_transform(pred_reshaped_noisy)
             true_values_original_noisy = scaler.inverse_transform(true_reshaped_noisy)
         except Exception as e:
-            print(f"Error during inverse transform (noisy data): {e}. Using scaled.")
+            logger.error(f"Error during inverse transform (noisy data): {e}. Using scaled.")
             predictions_original_noisy = pred_reshaped_noisy
             true_values_original_noisy = true_reshaped_noisy
 
@@ -311,14 +314,14 @@ def evaluate_robustness(model, dataloader, device, scaler, noise_levels, config_
         # --- Calculate Metrics (on CPU using numpy) ---
         metrics_noisy = calculate_metrics(true_values_original_noisy, predictions_original_noisy, config_obj.METRICS)
         robustness_results[f"noise_{noise_level}"] = metrics_noisy
-        print(f"  Metrics at noise={noise_level}: {metrics_noisy}")
+        logger.info(f"  Metrics at noise={noise_level}: {metrics_noisy}")
 
     # --- DataFrame creation and saving (on CPU) ---
     df_robustness = pd.DataFrame(robustness_results).T # 转置使噪声水平为行
     df_robustness.index.name = 'Noise Level (std ratio)'
     save_path = os.path.join(metrics_dir, f"{model_name}_robustness.csv")
     df_robustness.to_csv(save_path)
-    print(f"Robustness results saved to {save_path}")
+    logger.info(f"Robustness results saved to {save_path}")
 
     return df_robustness
 

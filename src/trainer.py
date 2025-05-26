@@ -81,9 +81,8 @@ class BaseTrainer:
         self.model_save_path = model_save_path
         self.model_name = model_name
         self.scaler = scaler # Add scaler to instance attributes
-        self.scaler = scaler
         self.config = config_obj # Add config object to instance attributes
-        self.early_stopping = EarlyStopping(patience=patience, verbose=True, path=model_save_path)
+        self.early_stopping = EarlyStopping(patience=patience, verbose=True, path=model_save_path, trace_func=logging.info)
         self.history = {'train_loss': [], 'val_loss': [], 'lr': [], 'grad_norm': []}
 
     def _train_epoch(self):
@@ -209,11 +208,18 @@ class StandardTrainer(BaseTrainer):
 
         avg_val_loss = total_loss / len(self.val_loader)
         
-        preds_all = torch.cat(all_preds, dim=0).numpy()
-        true_labels_all = torch.cat(all_true_labels, dim=0).numpy()
-        val_metrics = evaluate_model(self.model, self.val_loader, device=self.device, scaler=self.scaler, config_obj=self.config)
+        preds_all = torch.cat(all_preds, dim=0) # Keep as tensor for evaluate_model
+        true_labels_all = torch.cat(all_true_labels, dim=0) # Keep as tensor for evaluate_model
+        
+        # evaluate_model 期望原始尺度的预测和真实值，所以需要逆变换
+        # 但 evaluate_model 内部会处理逆变换，这里直接传入 scaled 的 tensor
+        # evaluate_model 返回 metrics, true_values_original, predictions_original
+        val_metrics, true_values_original, predictions_original = evaluate_model(
+            self.model, self.val_loader, device=self.device, scaler=self.scaler,
+            config_obj=self.config, logger=logging, dataset_type="Validation Set"
+        )
 
-        return avg_val_loss, val_metrics[0], val_metrics[1], val_metrics[2]
+        return avg_val_loss, val_metrics, true_values_original, predictions_original
 
 
 class RDT_Trainer(BaseTrainer):
@@ -324,11 +330,24 @@ class RDT_Trainer(BaseTrainer):
         teacher_preds_all = torch.cat(all_teacher_preds, dim=0).numpy()
         true_labels_all = torch.cat(all_true_labels, dim=0).numpy()
 
+        # 将 scaled 的预测结果逆变换回原始尺度，以便计算相似度
+        # evaluate_model 内部会处理 student_preds_all 的逆变换
+        # 但 teacher_preds_all 需要在这里逆变换，因为 evaluate_model 不会处理它
+        n_samples, horizon, n_features = teacher_preds_all.shape
+        teacher_preds_reshaped = teacher_preds_all.view(-1, n_features).numpy()
+        try:
+            teacher_preds_original = self.scaler.inverse_transform(teacher_preds_reshaped)
+        except Exception as e:
+            logging.error(f"Error during inverse transform of teacher predictions: {e}. Using scaled values for similarity.")
+            teacher_preds_original = teacher_preds_reshaped
+        teacher_preds_original = teacher_preds_original.reshape(n_samples, horizon, n_features)
+
         # 计算验证集上的评估指标
         val_metrics, _, _ = evaluate_model(
-            self.model, self.val_loader, self.device, self.scaler, self.config,
+            self.model, self.val_loader, self.device, self.scaler, self.config, logging,
             model_name=self.model_name, plots_dir=os.path.join(self.config.RESULTS_DIR, "plots"),
-            teacher_predictions_original=teacher_preds_all
+            teacher_predictions_original=teacher_preds_original, # 传入原始尺度的教师预测
+            dataset_type="Validation Set"
         )
         # 计算学生-教师相似度
         simi_student_teacher = calculate_similarity_metrics(student_preds_all, teacher_preds_all, metric_type=self.config.SIMILARITY_METRIC)
