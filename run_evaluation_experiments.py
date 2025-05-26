@@ -353,7 +353,7 @@ def main():
                     dataset_name, dataset_path, pred_horizon, LOOKBACK_WINDOW, EPOCHS, STABILITY_RUNS,
                     teacher_model, student_model,
                     experiment_type='standard', logger=logger,
-                    base_output_dir=base_results_dir
+                    base_output_dir="results"
                 )
                 all_experiment_results.extend(run_results)
                 all_experiment_similarity_results.extend(sim_results)
@@ -366,7 +366,7 @@ def main():
                         teacher_model, student_model,
                         noise_level=noise_level, noise_type=NOISE_TYPE,
                         experiment_type='noise_injection', logger=logger,
-                        base_output_dir=base_results_dir
+                        base_output_dir="results"
                     )
                     all_experiment_results.extend(run_results)
                     all_experiment_similarity_results.extend(sim_results)
@@ -379,7 +379,7 @@ def main():
                         teacher_model, student_model,
                         smoothing_factor=smoothing_factor, smoothing_method=SMOOTHING_METHOD,
                         experiment_type='denoising_smoothing', logger=logger,
-                        base_output_dir=base_results_dir
+                        base_output_dir="results"
                     )
                     all_experiment_results.extend(run_results)
                     all_experiment_similarity_results.extend(sim_results)
