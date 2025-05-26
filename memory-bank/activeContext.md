@@ -78,3 +78,4 @@ This file tracks the project's current status, including recent changes, current
 * 2025-05-26 17:43:00 - 完成了增强预测结果与真实值对比的可视化功能（包括残差分析和误差分布图）。
 * 2025-05-26 17:45:00 - 完成了详细的参数记录机制，包括实验元数据、模型架构参数、训练配置参数和数据处理参数的保存。
 * [2025-05-26 18:07:13] - 修复 `src/utils.py` 中 `plot_predictions` 函数的 `title` 和 `save_path` 未定义警告，通过修改函数签名并正确传递参数。
+* 2025-05-26 21:27:19 - 修改 `run_evaluation_experiments.py` 以实现噪音注入和去噪平滑的配置调整。

@@ -73,3 +73,10 @@ This file tracks the project's progress using a task list format.
 * 2025-05-26 17:43:00 - 完成了增强预测结果与真实值对比的可视化功能（包括残差分析和误差分布图）。
 * [2025-05-26 18:07:26] - 完成 `src/utils.py` 中 `plot_predictions` 函数的 `title` 和 `save_path` 未定义警告修复。
 * [2025-05-26 18:38:32] - 为 `run_evaluation_experiments.py` 的训练过程增加了进度条。
+* [2025-05-26 21:22:00] - 修复 `src/data_handler.py` 中 `load_and_preprocess_data` 函数在 `denoising_smoothing` 实验类型下测试集未平滑的问题，并增加了 `src/config.py` 中的 `SMOOTHING_APPLY_TEST` 配置项。
+* [2025-05-26 21:22:00] - 修复 `src/evaluator.py` 中 `evaluate_model` 和 `evaluate_robustness` 函数使用 `print` 而非 `logger` 的问题，并更新了 `run_evaluation_experiments.py` 中对这些函数的调用。
+* [2025-05-26 21:22:00] - 修复 `src/trainer.py` 中 `StandardTrainer._validate_epoch` 函数 `evaluate_model` 返回值解包不正确的问题。
+* [2025-05-26 21:22:00] - 修复 `src/trainer.py` 中 `EarlyStopping` 的 `trace_func` 默认使用 `print` 的问题，改为使用 `logging.info`。
+* [2025-05-26 21:22:00] - 修复 `src/trainer.py` 中 `BaseTrainer` 的 `self.scaler` 重复赋值问题。
+* [2025-05-26 21:22:00] - 修复 `src/trainer.py` 中 `RDT_Trainer._validate_epoch` 函数在调用 `evaluate_model` 时，`teacher_predictions_original` 参数传入的是 `scaled` 预测结果的问题，现在会传入逆变换后的原始尺度预测结果。
+* 2025-05-26 21:27:30 - 完成 `run_evaluation_experiments.py` 中噪音注入和平滑处理的配置修改。
