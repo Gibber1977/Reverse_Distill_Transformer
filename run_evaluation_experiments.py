@@ -58,7 +58,8 @@ def run_experiment(
     smoothing_factor=0,
     smoothing_method=None,
     experiment_type='standard', # 'standard', 'noise_injection', 'denoising_smoothing'
-    logger=None
+    logger=None,
+    base_output_dir=None # 新增参数
 ):
     logger.info(f"--- Running Experiment: {experiment_type} ---")
     logger.info(f"Dataset: {dataset_name}, Prediction Horizon: {pred_horizon}, "
@@ -77,6 +78,23 @@ def run_experiment(
         results = {} # 初始化当前运行的结果字典
         similarity_results = {} # 初始化当前运行的相似度结果字典
 
+        # 生成唯一的实验结果子文件夹
+        current_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # 处理 teacher_model_name 为 None 或空字符串的情况
+        teacher_name_for_dir = teacher_model_name if teacher_model_name else "NoTeacher"
+        
+        experiment_results_subdir_name = (
+            f"{dataset_name}_{teacher_name_for_dir}_{student_model_name}_"
+            f"h{pred_horizon}_noise{noise_level}_smooth{smoothing_factor}_"
+            f"{current_timestamp}"
+        )
+        
+        # 确保 base_output_dir 存在
+        if base_output_dir is None:
+            base_output_dir = "results/experiments" # 默认值，以防万一
+
+        experiment_results_dir = os.path.join(base_output_dir, experiment_results_subdir_name)
+
         # 加载和预处理数据
         config = Config()
         config.LOOKBACK_WINDOW = lookback_window
@@ -89,6 +107,7 @@ def run_experiment(
         config.SMOOTHING_FACTOR = smoothing_factor
         config.SMOOTHING_METHOD = smoothing_method
         config.SIMILARITY_METRIC = 'cosine_similarity' # 保持与run_quick_test_evaluation.py一致
+        config.RESULTS_DIR = experiment_results_dir # 设置为新的子文件夹
         config.update_model_configs() # 更新依赖于这些值的模型配置
 
         # 确保结果和绘图目录存在
@@ -295,8 +314,8 @@ def run_experiment(
 
 def main():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    results_dir = f"results/experiments_{timestamp}"
-    os.makedirs(results_dir, exist_ok=True)
+    base_results_dir = f"results/experiments_{timestamp}"
+    os.makedirs(base_results_dir, exist_ok=True)
 
     log_file = os.path.join("log", f"experiment_log_{timestamp}.log")
     logger = setup_logging(log_file)
@@ -313,7 +332,7 @@ def main():
     current_config.SMOOTHING_FACTORS = SMOOTHING_FACTORS
     current_config.update_model_configs() # 确保模型配置是最新的
     
-    save_experiment_metadata(current_config, results_dir, f"experiment_{timestamp}")
+    save_experiment_metadata(current_config, base_results_dir, f"experiment_{timestamp}")
 
     all_experiment_results = []
     all_experiment_similarity_results = []
@@ -333,7 +352,8 @@ def main():
                 run_results, sim_results = run_experiment(
                     dataset_name, dataset_path, pred_horizon, LOOKBACK_WINDOW, EPOCHS, STABILITY_RUNS,
                     teacher_model, student_model,
-                    experiment_type='standard', logger=logger
+                    experiment_type='standard', logger=logger,
+                    base_output_dir=base_results_dir
                 )
                 all_experiment_results.extend(run_results)
                 all_experiment_similarity_results.extend(sim_results)
@@ -345,7 +365,8 @@ def main():
                         dataset_name, dataset_path, pred_horizon, LOOKBACK_WINDOW, EPOCHS, STABILITY_RUNS,
                         teacher_model, student_model,
                         noise_level=noise_level, noise_type=NOISE_TYPE,
-                        experiment_type='noise_injection', logger=logger
+                        experiment_type='noise_injection', logger=logger,
+                        base_output_dir=base_results_dir
                     )
                     all_experiment_results.extend(run_results)
                     all_experiment_similarity_results.extend(sim_results)
@@ -357,7 +378,8 @@ def main():
                         dataset_name, dataset_path, pred_horizon, LOOKBACK_WINDOW, EPOCHS, STABILITY_RUNS,
                         teacher_model, student_model,
                         smoothing_factor=smoothing_factor, smoothing_method=SMOOTHING_METHOD,
-                        experiment_type='denoising_smoothing', logger=logger
+                        experiment_type='denoising_smoothing', logger=logger,
+                        base_output_dir=base_results_dir
                     )
                     all_experiment_results.extend(run_results)
                     all_experiment_similarity_results.extend(sim_results)
@@ -369,8 +391,8 @@ def main():
     results_df = pd.DataFrame(all_experiment_results)
     similarity_df = pd.DataFrame(all_experiment_similarity_results)
 
-    results_csv_path = os.path.join(results_dir, "experiment_results.csv")
-    similarity_csv_path = os.path.join(results_dir, "similarity_results.csv")
+    results_csv_path = os.path.join(base_results_dir, "experiment_results.csv")
+    similarity_csv_path = os.path.join(base_results_dir, "similarity_results.csv")
 
     save_results_to_csv(results_df, results_csv_path, logger)
     save_results_to_csv(similarity_df, similarity_csv_path, logger)
@@ -382,10 +404,10 @@ def main():
     logger.info("\n--- Generating Visualizations ---")
 
     # 噪音注入评估可视化
-    plot_noise_evaluation(results_df, similarity_df, results_dir, logger)
+    plot_noise_evaluation(results_df, similarity_df, base_results_dir, logger)
 
     # 去噪平滑评估可视化
-    plot_smoothing_evaluation(results_df, similarity_df, results_dir, logger)
+    plot_smoothing_evaluation(results_df, similarity_df, base_results_dir, logger)
 
     logger.info("All visualizations generated.")
     logger.info("Comprehensive evaluation experiments completed.")
