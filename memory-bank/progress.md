@@ -80,3 +80,4 @@ This file tracks the project's progress using a task list format.
 * [2025-05-26 21:22:00] - 修复 `src/trainer.py` 中 `BaseTrainer` 的 `self.scaler` 重复赋值问题。
 * [2025-05-26 21:22:00] - 修复 `src/trainer.py` 中 `RDT_Trainer._validate_epoch` 函数在调用 `evaluate_model` 时，`teacher_predictions_original` 参数传入的是 `scaled` 预测结果的问题，现在会传入逆变换后的原始尺度预测结果。
 * 2025-05-26 21:27:30 - 完成 `run_evaluation_experiments.py` 中噪音注入和平滑处理的配置修改。
+* 2025-05-27 00:15:10 - 完成 `README.md` 文档更新。
