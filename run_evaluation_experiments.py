@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import datetime
+from tqdm import tqdm
 
 from src.config import Config
 from src.data_handler import TimeSeriesDataset, load_and_preprocess_data
@@ -308,11 +309,13 @@ def main():
 
     logger.info("Starting comprehensive evaluation experiments...")
 
-    for dataset_name, dataset_path in DATASETS.items():
-        for pred_horizon in PREDICTION_HORIZONS:
-            for teacher_model, student_model in MODELS:
-                logger.info(f"\n--- Running for Dataset: {dataset_name}, Horizon: {pred_horizon}, "
-                            f"Models: {teacher_model}/{student_model} ---")
+    total_experiments = len(DATASETS) * len(PREDICTION_HORIZONS) * len(MODELS)
+    with tqdm(total=total_experiments, desc="Overall Experiment Progress") as pbar:
+        for dataset_name, dataset_path in DATASETS.items():
+            for pred_horizon in PREDICTION_HORIZONS:
+                for teacher_model, student_model in MODELS:
+                    logger.info(f"\n--- Running for Dataset: {dataset_name}, Horizon: {pred_horizon}, "
+                                f"Models: {teacher_model}/{student_model} ---")
 
                 # 1. 标准评估 (无噪音, 无平滑)
                 logger.info("\n--- Running Standard Evaluation ---")
@@ -347,6 +350,9 @@ def main():
                     )
                     all_experiment_results.extend(run_results)
                     all_experiment_similarity_results.extend(sim_results)
+                    pbar.update(1)
+    
+    logger.info("All experiments completed.")
 
     # 保存所有结果
     results_df = pd.DataFrame(all_experiment_results)

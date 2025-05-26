@@ -1,5 +1,4 @@
-# Progress
-
+[2025-05-26 18:28:24] - 开始统计当前项目所有 Python 文件的代码行数。
 2025-05-26 14:35:50 - 为模型抗噪音效果评估、数据去噪效果评估、Simi(Student,Teacher)评估以及增强Alpha调度器功能提供了详细的规范和伪代码。
 
 This file tracks the project's progress using a task list format.
@@ -73,3 +72,4 @@ This file tracks the project's progress using a task list format.
 * 2025-05-26 17:41:00 - 完成了模型权重和偏置分布的可视化功能。
 * 2025-05-26 17:43:00 - 完成了增强预测结果与真实值对比的可视化功能（包括残差分析和误差分布图）。
 * [2025-05-26 18:07:26] - 完成 `src/utils.py` 中 `plot_predictions` 函数的 `title` 和 `save_path` 未定义警告修复。
+* [2025-05-26 18:38:32] - 为 `run_evaluation_experiments.py` 的训练过程增加了进度条。
