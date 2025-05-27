@@ -40,7 +40,7 @@ def add_noise(data, noise_type, noise_level):
         raise ValueError(f"Unsupported noise type: {noise_type}")
     return noisy_data
 
-def smooth_data(data, smoothing_method, smoothing_factor, weight_original=0.0):
+def smooth_data(data, smoothing_method, smoothing_factor=24, weight_original=0.0):
     """
     对数据进行平滑处理，并可选择与原始数据加权合成。
     data: numpy array, 原始数据
