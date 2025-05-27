@@ -56,7 +56,7 @@ def run_experiment(
     student_model_name,
     noise_level=0,
     noise_type=None,
-    smoothing_factor=0,
+    smoothing_weight_smoothing=0.0,
     smoothing_method=None,
     experiment_type='standard', # 'standard', 'noise_injection', 'denoising_smoothing'
     logger=None,
@@ -68,7 +68,7 @@ def run_experiment(
     if noise_type:
         logger.info(f"Noise: {noise_type} at level {noise_level}")
     if smoothing_method:
-        logger.info(f"Smoothing: {smoothing_method} with factor {smoothing_factor}")
+        logger.info(f"Smoothing: {smoothing_method} with weight_smoothing {smoothing_weight_smoothing}")
 
     all_run_results = []
     all_similarity_results = []
@@ -87,7 +87,7 @@ def run_experiment(
         # 不再包含时间戳的实验组合目录名
         base_experiment_name = (
             f"{dataset_name}_{teacher_name_for_dir}_{student_model_name}_"
-            f"h{pred_horizon}_noise{noise_level}_smooth{smoothing_factor}"
+            f"h{pred_horizon}_noise{noise_level}_smooth_w{smoothing_weight_smoothing}"
         )
         
         # 确保 base_output_dir 存在
@@ -110,7 +110,8 @@ def run_experiment(
         config.EPOCHS = epochs
         config.TRAIN_NOISE_INJECTION_LEVEL = noise_level
         config.NOISE_TYPE = noise_type
-        config.SMOOTHING_FACTOR = smoothing_factor
+        config.SMOOTHING_FACTOR = 24 # 为 moving_average 设置一个默认窗口大小
+        config.SMOOTHING_WEIGHT_SMOOTHING = smoothing_weight_smoothing
         config.SMOOTHING_METHOD = smoothing_method
         config.SIMILARITY_METRIC = 'cosine_similarity' # 保持与run_quick_test_evaluation.py一致
         config.RESULTS_DIR = experiment_results_dir # 设置为新的子文件夹
@@ -308,7 +309,7 @@ def run_experiment(
             'student_model': student_model_name,
             'noise_level': noise_level,
             'noise_type': noise_type,
-            'smoothing_factor': smoothing_factor,
+            'smoothing_weight_smoothing': smoothing_weight_smoothing,
             'smoothing_method': smoothing_method,
             'experiment_type': experiment_type,
             'run_idx': run_idx + 1
@@ -396,37 +397,37 @@ def main():
                     logger.info(f"\n--- Running for Dataset: {dataset_name}, Horizon: {pred_horizon}, "
                                 f"Models: {teacher_model}/{student_model} ---")
 
-                # 1. 标准评估 (无噪音, 无平滑)
-                logger.info("\n--- Running Standard Evaluation ---")
-                run_results, sim_results = run_experiment(
-                    dataset_name, dataset_path, pred_horizon, LOOKBACK_WINDOW, EPOCHS, STABILITY_RUNS,
-                    teacher_model, student_model,
-                    experiment_type='standard', logger=logger,
-                    base_output_dir=base_results_dir
-                )
-                all_experiment_results.extend(run_results)
-                all_experiment_similarity_results.extend(sim_results)
+                # # 1. 标准评估 (无噪音, 无平滑)
+                # logger.info("\n--- Running Standard Evaluation ---")
+                # run_results, sim_results = run_experiment(
+                #     dataset_name, dataset_path, pred_horizon, LOOKBACK_WINDOW, EPOCHS, STABILITY_RUNS,
+                #     teacher_model, student_model,
+                #     experiment_type='standard', logger=logger,
+                #     base_output_dir=base_results_dir
+                # )
+                # all_experiment_results.extend(run_results)
+                # all_experiment_similarity_results.extend(sim_results)
 
-                # 2. 噪音注入评估
-                logger.info("\n--- Running Noise Injection Evaluation ---")
-                for noise_level in NOISE_LEVELS:
-                    run_results, sim_results = run_experiment(
-                        dataset_name, dataset_path, pred_horizon, LOOKBACK_WINDOW, EPOCHS, STABILITY_RUNS,
-                        teacher_model, student_model,
-                        noise_level=noise_level, noise_type=NOISE_TYPE,
-                        experiment_type='noise_injection', logger=logger,
-                        base_output_dir=base_results_dir
-                    )
-                    all_experiment_results.extend(run_results)
-                    all_experiment_similarity_results.extend(sim_results)
+                # # 2. 噪音注入评估
+                # logger.info("\n--- Running Noise Injection Evaluation ---")
+                # for noise_level in NOISE_LEVELS:
+                #     run_results, sim_results = run_experiment(
+                #         dataset_name, dataset_path, pred_horizon, LOOKBACK_WINDOW, EPOCHS, STABILITY_RUNS,
+                #         teacher_model, student_model,
+                #         noise_level=noise_level, noise_type=NOISE_TYPE,
+                #         experiment_type='noise_injection', logger=logger,
+                #         base_output_dir=base_results_dir
+                #     )
+                #     all_experiment_results.extend(run_results)
+                #     all_experiment_similarity_results.extend(sim_results)
 
                 # 3. 去噪平滑评估
                 logger.info("\n--- Running Denoising Smoothing Evaluation ---")
-                for smoothing_factor in SMOOTHING_FACTORS:
+                for smoothing_weight_smoothing in SMOOTHING_FACTORS:
                     run_results, sim_results = run_experiment(
                         dataset_name, dataset_path, pred_horizon, LOOKBACK_WINDOW, EPOCHS, STABILITY_RUNS,
                         teacher_model, student_model,
-                        smoothing_factor=smoothing_factor, smoothing_method=SMOOTHING_METHOD,
+                        smoothing_weight_smoothing=smoothing_weight_smoothing, smoothing_method=SMOOTHING_METHOD,
                         experiment_type='denoising_smoothing', logger=logger,
                         base_output_dir=base_results_dir
                     )

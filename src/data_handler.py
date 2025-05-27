@@ -243,21 +243,21 @@ def load_and_preprocess_data(dataset_path, cfg, logger):
     # --- 4. 数据平滑 (可选) ---
     # 对原始数据进行平滑，然后标准化
     if cfg.SMOOTHING_APPLY_TRAIN and cfg.SMOOTHING_METHOD != 'none':
-        logger.info(f"Applying smoothing to training data: method='{cfg.SMOOTHING_METHOD}', factor={cfg.SMOOTHING_FACTOR}")
-        train_data_smoothed = smooth_data(train_data_raw, cfg.SMOOTHING_METHOD, cfg.SMOOTHING_FACTOR)
+        logger.info(f"Applying smoothing to training data: method='{cfg.SMOOTHING_METHOD}', smoothing_factor={cfg.SMOOTHING_FACTOR}, weight_smoothing={cfg.SMOOTHING_WEIGHT_SMOOTHING}")
+        train_data_smoothed = smooth_data(train_data_raw, smoothing_method=cfg.SMOOTHING_METHOD, smoothing_factor=cfg.SMOOTHING_FACTOR, weight_smoothing=cfg.SMOOTHING_WEIGHT_SMOOTHING)
     else:
         train_data_smoothed = train_data_raw
     
     if cfg.SMOOTHING_APPLY_VAL and cfg.SMOOTHING_METHOD != 'none':
-        logger.info(f"Applying smoothing to validation data: method='{cfg.SMOOTHING_METHOD}', factor={cfg.SMOOTHING_FACTOR}")
-        val_data_smoothed = smooth_data(val_data_raw, cfg.SMOOTHING_METHOD, cfg.SMOOTHING_FACTOR)
+        logger.info(f"Applying smoothing to validation data: method='{cfg.SMOOTHING_METHOD}', smoothing_factor={cfg.SMOOTHING_FACTOR}, weight_smoothing={cfg.SMOOTHING_WEIGHT_SMOOTHING}")
+        val_data_smoothed = smooth_data(val_data_raw, smoothing_method=cfg.SMOOTHING_METHOD, smoothing_factor=cfg.SMOOTHING_FACTOR, weight_smoothing=cfg.SMOOTHING_WEIGHT_SMOOTHING)
     else:
         val_data_smoothed = val_data_raw
 
     # 测试集通常不进行平滑，除非是去噪评估的一部分
     if cfg.SMOOTHING_APPLY_TEST and cfg.SMOOTHING_METHOD != 'none':
-        logger.info(f"Applying smoothing to test data: method='{cfg.SMOOTHING_METHOD}', factor={cfg.SMOOTHING_FACTOR}")
-        test_data_smoothed = smooth_data(test_data_raw, cfg.SMOOTHING_METHOD, cfg.SMOOTHING_FACTOR)
+        logger.info(f"Applying smoothing to test data: method='{cfg.SMOOTHING_METHOD}', smoothing_factor={cfg.SMOOTHING_FACTOR}, weight_smoothing={cfg.SMOOTHING_WEIGHT_SMOOTHING}")
+        test_data_smoothed = smooth_data(test_data_raw, smoothing_method=cfg.SMOOTHING_METHOD, smoothing_factor=cfg.SMOOTHING_FACTOR, weight_smoothing=cfg.SMOOTHING_WEIGHT_SMOOTHING)
     else:
         test_data_smoothed = test_data_raw
 
