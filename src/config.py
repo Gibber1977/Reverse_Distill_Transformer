@@ -22,7 +22,7 @@ class Config:
         self.PREDICTION_HORIZON = 192
         self.VAL_SPLIT_RATIO = 0.43
         self.TEST_SPLIT_RATIO = 0.3
-        self.BATCH_SIZE = 128 # Increased for better GPU utilization
+        self.BATCH_SIZE = 32 # Increased for better GPU utilization
         self.NUM_WORKERS = 4  # Increased for faster data loading
 
         # --- 模型配置 ---
@@ -91,7 +91,7 @@ class Config:
 
         # --- 日志配置 ---
         self.LOG_LEVEL = 'INFO'
-        self.LOG_FILE_NAME = f"{self.EXPERIMENT_NAME}_{os.path.basename(self.DATASET_PATH).split('.')[0]}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+        self.LOG_FILE_NAME = f"{self.EXPERIMENT_NAME}_{os.path.basename(self.DATASET_PATH).split('.')[0]}.log"
         self.LOG_FILE_PATH = os.path.join(self.LOG_DIR, self.LOG_FILE_NAME)
 
         # --- 新增模型参数设置 ---
@@ -239,5 +239,5 @@ class Config:
         })
         # 确保 EXPERIMENT_NAME 也更新
         self.EXPERIMENT_NAME = f"RDT_{self.STUDENT_MODEL_NAME}_vs_{self.TEACHER_MODEL_NAME}_h{self.PREDICTION_HORIZON}"
-        self.LOG_FILE_NAME = f"{self.EXPERIMENT_NAME}_{os.path.basename(self.DATASET_PATH).split('.')[0]}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+        self.LOG_FILE_NAME = f"{self.EXPERIMENT_NAME}_{os.path.basename(self.DATASET_PATH).split('.')[0]}.log"
         self.LOG_FILE_PATH = os.path.join(self.LOG_DIR, self.LOG_FILE_NAME)
