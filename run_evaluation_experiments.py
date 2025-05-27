@@ -119,6 +119,14 @@ def run_experiment(
         config.SMOOTHING_METHOD = smoothing_method
         config.SIMILARITY_METRIC = 'cosine_similarity' # 保持与run_quick_test_evaluation.py一致
         config.RESULTS_DIR = experiment_results_dir # 设置为新的子文件夹
+        
+        # 将当前实验的参数赋值给 config 对象，以便在 evaluate_model 中使用
+        config.DATASET_NAME = dataset_name
+        config.NOISE_LEVEL = noise_level
+        config.SMOOTHING_WEIGHT = smoothing_weight_smoothing
+        config.RUN_IDX = run_idx + 1 # run_idx 是从0开始的，这里加1使其与日志一致
+        config.SEED = current_seed
+
         config.update_model_configs() # 更新依赖于这些值的模型配置
 
         # 确保结果和绘图目录存在
@@ -321,6 +329,17 @@ def run_experiment(
         all_run_results.append({**run_metadata, **results})
         all_similarity_results.append({**run_metadata, **similarity_results})
 
+        # 保存当前运行的独立指标和相似度结果
+        run_metrics_path = os.path.join(experiment_results_dir, "run_metrics.json")
+        with open(run_metrics_path, 'w') as f:
+            json.dump(results, f, indent=4)
+        logger.info(f"Individual run metrics saved to: {run_metrics_path}")
+
+        run_similarity_path = os.path.join(experiment_results_dir, "run_similarity.json")
+        with open(run_similarity_path, 'w') as f:
+            json.dump(similarity_results, f, indent=4)
+        logger.info(f"Individual run similarity results saved to: {run_similarity_path}")
+
         # 标记当前运行已完成
         with open(completion_marker_file, 'w') as f:
             f.write("completed")
@@ -408,13 +427,23 @@ def main():
                     logger.info(f"\n--- Running for Dataset: {dataset_name}, Horizon: {pred_horizon}, "
                                 f"Models: {teacher_model}/{student_model} ---")
 
+                    # 构建当前实验组合的父目录名
+                    teacher_name_for_dir = teacher_model if teacher_model else "NoTeacher"
+                    current_experiment_combination_dir = (
+                        f"{dataset_name}_{teacher_name_for_dir}_{student_model}_"
+                        f"h{pred_horizon}_noise0_smooth_w0.0" # 这里的noise和smooth值是默认值，仅用于目录名
+                    )
+                    current_base_output_dir = os.path.join(base_results_dir, current_experiment_combination_dir)
+                    os.makedirs(current_base_output_dir, exist_ok=True)
+
                     # 1. 标准评估 (无噪音, 无平滑)
                     logger.info("\n--- Running Standard Evaluation ---")
                     run_results, sim_results = run_experiment(
                         dataset_name, dataset_path, pred_horizon, LOOKBACK_WINDOW, EPOCHS, STABILITY_RUNS,
                         teacher_model, student_model,
+                        noise_level=0, smoothing_weight_smoothing=0.0, # 确保传递正确的参数用于目录名
                         experiment_type='standard', logger=logger,
-                        base_output_dir=base_results_dir,
+                        base_output_dir=base_results_dir, # 仍然传递总的results目录
                         pbar=pbar # Pass pbar
                     )
                     all_experiment_results.extend(run_results)
@@ -426,9 +455,9 @@ def main():
                         run_results, sim_results = run_experiment(
                             dataset_name, dataset_path, pred_horizon, LOOKBACK_WINDOW, EPOCHS, STABILITY_RUNS,
                             teacher_model, student_model,
-                            noise_level=noise_level, noise_type=NOISE_TYPE,
+                            noise_level=noise_level, noise_type=NOISE_TYPE, smoothing_weight_smoothing=0.0, # 确保传递正确的参数用于目录名
                             experiment_type='noise_injection', logger=logger,
-                            base_output_dir=base_results_dir,
+                            base_output_dir=base_results_dir, # 仍然传递总的results目录
                             pbar=pbar # Pass pbar
                         )
                         all_experiment_results.extend(run_results)
@@ -440,17 +469,32 @@ def main():
                         run_results, sim_results = run_experiment(
                             dataset_name, dataset_path, pred_horizon, LOOKBACK_WINDOW, EPOCHS, STABILITY_RUNS,
                             teacher_model, student_model,
+                            noise_level=0, # 确保传递正确的参数用于目录名
                             smoothing_weight_smoothing=smoothing_weight_smoothing, smoothing_method=SMOOTHING_METHOD,
                             experiment_type='denoising_smoothing', logger=logger,
-                            base_output_dir=base_results_dir,
+                            base_output_dir=base_results_dir, # 仍然传递总的results目录
                             pbar=pbar # Pass pbar
                         )
                         all_experiment_results.extend(run_results)
                         all_experiment_similarity_results.extend(sim_results)
-    
+                    
+                    # 在每个实验组合完成后，生成并保存可视化结果
+                    logger.info(f"\n--- Generating Visualizations for {current_experiment_combination_dir} ---")
+                    
+                    # 过滤出当前实验组合的数据
+                    current_combo_results_df = pd.DataFrame(all_experiment_results)
+                    current_combo_sim_df = pd.DataFrame(all_experiment_similarity_results)
+
+                    # 噪音注入评估可视化
+                    plot_noise_evaluation(current_combo_results_df, current_combo_sim_df, current_base_output_dir, logger)
+
+                    # 去噪平滑评估可视化
+                    plot_smoothing_evaluation(current_combo_results_df, current_combo_sim_df, current_base_output_dir, logger)
+
+                    logger.info(f"Visualizations generated for {current_experiment_combination_dir}.")
+
     logger.info("All experiments completed.")
 
-    # 保存所有结果
     # 保存所有结果到根目录的CSV文件
     results_df = pd.DataFrame(all_experiment_results)
     similarity_df = pd.DataFrame(all_experiment_similarity_results)
@@ -465,16 +509,6 @@ def main():
     logger.info(f"All experiment results saved to: {results_csv_path}")
     logger.info(f"All similarity results saved to: {similarity_csv_path}")
 
-    # --- 可视化结果 ---
-    logger.info("\n--- Generating Visualizations ---")
-
-    # 噪音注入评估可视化
-    plot_noise_evaluation(results_df, similarity_df, base_results_dir, logger)
-
-    # 去噪平滑评估可视化
-    plot_smoothing_evaluation(results_df, similarity_df, base_results_dir, logger)
-
-    logger.info("All visualizations generated.")
     logger.info("Comprehensive evaluation experiments completed.")
 
 def plot_noise_evaluation(results_df, similarity_df, output_dir, logger):
