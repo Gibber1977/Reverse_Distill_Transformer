@@ -329,15 +329,28 @@ def run_experiment(
         all_run_results.append({**run_metadata, **results})
         all_similarity_results.append({**run_metadata, **similarity_results})
 
+        # 转换 NumPy float32 为 Python float，以便 JSON 序列化
+        def convert_floats(obj):
+            if isinstance(obj, np.float32) or isinstance(obj, np.float64):
+                return float(obj)
+            if isinstance(obj, dict):
+                return {k: convert_floats(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [convert_floats(elem) for elem in obj]
+            return obj
+
+        serializable_results = convert_floats(results)
+        serializable_similarity_results = convert_floats(similarity_results)
+
         # 保存当前运行的独立指标和相似度结果
         run_metrics_path = os.path.join(experiment_results_dir, "run_metrics.json")
         with open(run_metrics_path, 'w') as f:
-            json.dump(results, f, indent=4)
+            json.dump(serializable_results, f, indent=4)
         logger.info(f"Individual run metrics saved to: {run_metrics_path}")
 
         run_similarity_path = os.path.join(experiment_results_dir, "run_similarity.json")
         with open(run_similarity_path, 'w') as f:
-            json.dump(similarity_results, f, indent=4)
+            json.dump(serializable_similarity_results, f, indent=4)
         logger.info(f"Individual run similarity results saved to: {run_similarity_path}")
 
         # 标记当前运行已完成
