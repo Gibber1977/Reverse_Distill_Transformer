@@ -60,10 +60,26 @@ class Config:
         self.USE_AMP = True # Enable Automatic Mixed Precision (AMP)
 
         # --- RDT 配置 ---
+        # ALPHA_SCHEDULE options: 'linear', 'cosine', 'fixed', 'early_stopping_based', 'control_gate'
         self.ALPHA_START = 0.3
         self.ALPHA_END = 0.7
-        self.ALPHA_SCHEDULE = 'linear'
+        self.ALPHA_SCHEDULE = 'linear' 
         self.CONSTANT_ALPHA = 0.5
+
+        # --- Control Gate Scheduler Parameters ---
+        # Metric options: 'cosine_similarity', 'mse_student_true', 'mse_student_teacher'
+        self.CONTROL_GATE_METRIC = 'cosine_similarity' 
+        self.CONTROL_GATE_THRESHOLD_LOW = 0.5
+        self.CONTROL_GATE_THRESHOLD_HIGH = 0.8
+        self.CONTROL_GATE_ALPHA_ADJUST_RATE = 0.01
+        self.CONTROL_GATE_TARGET_SIMILARITY = 0.7  # Optional: for proportional control
+        self.CONTROL_GATE_MSE_STUDENT_TARGET = 0.1 # Optional: target MSE for student vs true
+
+        # --- Early Stopping Based Scheduler Parameters ---
+        self.ES_ALPHA_PATIENCE = 5 # Epochs with no val_loss improvement before adjusting alpha
+        # ES_ALPHA_ADJUST_MODE options: 'freeze', 'decay_to_teacher', 'decay_to_student'
+        self.ES_ALPHA_ADJUST_MODE = 'freeze' 
+        self.ES_ALPHA_ADJUST_RATE = 0.01 # Used if mode is decay
 
         # --- 评估配置 ---
         self.METRICS = ['mae', 'mse']

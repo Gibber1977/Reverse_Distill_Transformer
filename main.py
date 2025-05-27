@@ -309,6 +309,26 @@ def update_config_from_args(cfg, args):
     if args.teacher_model_name: cfg.TEACHER_MODEL_NAME = args.teacher_model_name if args.teacher_model_name.lower() != 'none' else None
     if args.student_model_name: cfg.STUDENT_MODEL_NAME = args.student_model_name
 
+    # --- RDT Alpha Scheduler Arguments ---
+    if args.alpha_schedule: cfg.ALPHA_SCHEDULE = args.alpha_schedule
+    if args.alpha_start is not None: cfg.ALPHA_START = args.alpha_start
+    if args.alpha_end is not None: cfg.ALPHA_END = args.alpha_end
+    if args.constant_alpha is not None: cfg.CONSTANT_ALPHA = args.constant_alpha
+
+    # --- Control Gate Scheduler Arguments ---
+    if args.control_gate_metric: cfg.CONTROL_GATE_METRIC = args.control_gate_metric
+    if args.control_gate_threshold_low is not None: cfg.CONTROL_GATE_THRESHOLD_LOW = args.control_gate_threshold_low
+    if args.control_gate_threshold_high is not None: cfg.CONTROL_GATE_THRESHOLD_HIGH = args.control_gate_threshold_high
+    if args.control_gate_alpha_adjust_rate is not None: cfg.CONTROL_GATE_ALPHA_ADJUST_RATE = args.control_gate_alpha_adjust_rate
+    if args.control_gate_target_similarity is not None: cfg.CONTROL_GATE_TARGET_SIMILARITY = args.control_gate_target_similarity
+    if args.control_gate_mse_student_target is not None: cfg.CONTROL_GATE_MSE_STUDENT_TARGET = args.control_gate_mse_student_target
+
+    # --- Early Stopping Based Scheduler Arguments ---
+    if args.es_alpha_patience is not None: cfg.ES_ALPHA_PATIENCE = args.es_alpha_patience
+    if args.es_alpha_adjust_mode: cfg.ES_ALPHA_ADJUST_MODE = args.es_alpha_adjust_mode
+    if args.es_alpha_adjust_rate is not None: cfg.ES_ALPHA_ADJUST_RATE = args.es_alpha_adjust_rate
+
+
     # Update dependent configs - Needs to be more robust if models change
     # This assumes TEACHER_CONFIG and STUDENT_CONFIG exist and have these keys
     if hasattr(cfg, 'TEACHER_CONFIG') and cfg.TEACHER_CONFIG:
@@ -499,6 +519,38 @@ if __name__ == "__main__":
                         help=f'Name of the teacher model (e.g., DLinear, PatchTST, None) (default: {default_config.TEACHER_MODEL_NAME})')
     parser.add_argument('--student_model_name', type=str, default=default_config.STUDENT_MODEL_NAME,
                         help=f'Name of the student model (e.g., PatchTST, DLinear) (default: {default_config.STUDENT_MODEL_NAME})')
+
+    # --- RDT Alpha Scheduler Arguments ---
+    parser.add_argument('--alpha_schedule', type=str, default=default_config.ALPHA_SCHEDULE,
+                        help=f'Alpha schedule type (linear, cosine, fixed, early_stopping_based, control_gate) (default: {default_config.ALPHA_SCHEDULE})')
+    parser.add_argument('--alpha_start', type=float, default=default_config.ALPHA_START,
+                        help=f'Starting alpha value for linear/cosine schedules (default: {default_config.ALPHA_START})')
+    parser.add_argument('--alpha_end', type=float, default=default_config.ALPHA_END,
+                        help=f'Ending alpha value for linear/cosine schedules (default: {default_config.ALPHA_END})')
+    parser.add_argument('--constant_alpha', type=float, default=default_config.CONSTANT_ALPHA,
+                        help=f'Constant alpha value for fixed schedule (default: {default_config.CONSTANT_ALPHA})')
+
+    # --- Control Gate Scheduler Arguments ---
+    parser.add_argument('--control_gate_metric', type=str, default=default_config.CONTROL_GATE_METRIC,
+                        help=f'Metric for control gate (cosine_similarity, mse_student_true, mse_student_teacher) (default: {default_config.CONTROL_GATE_METRIC})')
+    parser.add_argument('--control_gate_threshold_low', type=float, default=default_config.CONTROL_GATE_THRESHOLD_LOW,
+                        help=f'Lower threshold for control gate (default: {default_config.CONTROL_GATE_THRESHOLD_LOW})')
+    parser.add_argument('--control_gate_threshold_high', type=float, default=default_config.CONTROL_GATE_THRESHOLD_HIGH,
+                        help=f'Higher threshold for control gate (default: {default_config.CONTROL_GATE_THRESHOLD_HIGH})')
+    parser.add_argument('--control_gate_alpha_adjust_rate', type=float, default=default_config.CONTROL_GATE_ALPHA_ADJUST_RATE,
+                        help=f'Alpha adjustment rate for control gate (default: {default_config.CONTROL_GATE_ALPHA_ADJUST_RATE})')
+    parser.add_argument('--control_gate_target_similarity', type=float, default=default_config.CONTROL_GATE_TARGET_SIMILARITY,
+                        help=f'Target similarity for control gate (optional) (default: {default_config.CONTROL_GATE_TARGET_SIMILARITY})')
+    parser.add_argument('--control_gate_mse_student_target', type=float, default=default_config.CONTROL_GATE_MSE_STUDENT_TARGET,
+                        help=f'Target MSE for student vs true for control gate (optional) (default: {default_config.CONTROL_GATE_MSE_STUDENT_TARGET})')
+
+    # --- Early Stopping Based Scheduler Arguments ---
+    parser.add_argument('--es_alpha_patience', type=int, default=default_config.ES_ALPHA_PATIENCE,
+                        help=f'Patience for early stopping based alpha scheduler (default: {default_config.ES_ALPHA_PATIENCE})')
+    parser.add_argument('--es_alpha_adjust_mode', type=str, default=default_config.ES_ALPHA_ADJUST_MODE,
+                        help=f'Alpha adjustment mode for early stopping (freeze, decay_to_teacher, decay_to_student) (default: {default_config.ES_ALPHA_ADJUST_MODE})')
+    parser.add_argument('--es_alpha_adjust_rate', type=float, default=default_config.ES_ALPHA_ADJUST_RATE,
+                        help=f'Alpha adjustment rate for early stopping decay modes (default: {default_config.ES_ALPHA_ADJUST_RATE})')
 
     args = parser.parse_args()
     main(args)
