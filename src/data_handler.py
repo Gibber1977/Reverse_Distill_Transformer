@@ -40,39 +40,68 @@ def add_noise(data, noise_type, noise_level):
         raise ValueError(f"Unsupported noise type: {noise_type}")
     return noisy_data
 
-def smooth_data(data, smoothing_method, smoothing_factor=24, weight_original=0.0):
+def smooth_data(data, smoothing_method="moving_average", smoothing_factor=24, 
+                weight_original=None, weight_smoothing=None):
     """
     对数据进行平滑处理，并可选择与原始数据加权合成。
+    
     data: numpy array, 原始数据
     smoothing_method: 字符串, 平滑方法 ('moving_average', 'exponential', 'none')
     smoothing_factor: 浮点数, 平滑系数 (例如，移动平均的窗口大小或指数平滑的alpha)
     weight_original: 浮点数, 原始数据在合成中的权重 (0.0 到 1.0)。
-                     如果为 0.0，则完全使用平滑数据；如果为 1.0，则完全使用原始数据。
+                     如果为 None 且 weight_smoothing 也为 None，则默认为 0.8。
+    weight_smoothing: 浮点数, 平滑数据在合成中的权重 (0.0 到 1.0)。
+                      如果为 None 且 weight_original 也为 None，则默认为 0.2。
+                      weight_original 和 weight_smoothing 必须和为 1.0。
+                      两者只能传入一个，或都不传入。
     """
     if smoothing_method == 'moving_average':
         if not isinstance(smoothing_factor, int) or smoothing_factor <= 0:
             raise ValueError("For 'moving_average', smoothing_factor must be a positive integer (window size).")
         window_size = int(smoothing_factor)
-        temp_smoothed_data = np.copy(data)
+        temp_smoothed_data = np.copy(data).astype(float) # 确保数据类型为浮点，避免整数截断
         for i in range(data.shape[1]): # 对每个特征列进行平滑
-            temp_smoothed_data[:, i] = pd.Series(data[:, i]).rolling(window=window_size, min_periods=1, center=True).mean().values
+            temp_smoothed_data[:, i] = pd.Series(data[:, i]).rolling(
+                window=window_size, min_periods=1, center=True
+            ).mean().values
     elif smoothing_method == 'exponential':
         if not (0 <= smoothing_factor <= 1):
             raise ValueError("For 'exponential', smoothing_factor must be between 0 and 1 (alpha).")
         alpha = smoothing_factor
-        temp_smoothed_data = np.copy(data)
+        temp_smoothed_data = np.copy(data).astype(float) # 确保数据类型为浮点
         for i in range(data.shape[1]): # 对每个特征列进行平滑
             temp_smoothed_data[:, i] = pd.Series(data[:, i]).ewm(alpha=alpha, adjust=False).mean().values
     elif smoothing_method == 'none':
-        temp_smoothed_data = np.copy(data)
+        temp_smoothed_data = np.copy(data).astype(float) # 确保数据类型为浮点
     else:
         raise ValueError(f"Unsupported smoothing method: {smoothing_method}")
     
+    # --- 处理权重参数 ---
+    if weight_original is not None and weight_smoothing is not None:
+        raise ValueError("Please provide either 'weight_original' or 'weight_smoothing', not both.")
+    
+    if weight_original is None and weight_smoothing is None:
+        # 都没有传入，使用默认值
+        weight_original = 0.8
+        weight_smoothing = 0.2
+    elif weight_original is not None:
+        # 只传入了 weight_original
+        if not (0.0 <= weight_original <= 1.0):
+            raise ValueError("weight_original must be between 0.0 and 1.0.")
+        weight_smoothing = 1.0 - weight_original
+    elif weight_smoothing is not None:
+        # 只传入了 weight_smoothing
+        if not (0.0 <= weight_smoothing <= 1.0):
+            raise ValueError("weight_smoothing must be between 0.0 and 1.0.")
+        weight_original = 1.0 - weight_smoothing
+    
+    # 确保最终权重和为 1 (理论上到这里已经是了，但明确一下)
+    # 浮点数比较需要注意精度，但这里是直接计算得出的，所以通常没问题
+    if not np.isclose(weight_original + weight_smoothing, 1.0):
+        # 理论上不会发生，除非上述逻辑有bug
+        raise RuntimeError("Internal error: weight_original and weight_smoothing do not sum to 1.0 after calculation.")
     # 加权合成平滑后的数据和原始数据
-    if 0.0 <= weight_original <= 1.0:
-        smoothed_data = (1 - weight_original) * temp_smoothed_data + weight_original * data
-    else:
-        raise ValueError("weight_original must be between 0.0 and 1.0")
+    smoothed_data = weight_smoothing * temp_smoothed_data + weight_original * data
     
     return smoothed_data
 
