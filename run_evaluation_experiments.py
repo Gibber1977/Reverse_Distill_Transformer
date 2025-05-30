@@ -254,7 +254,7 @@ def run_experiment(
         # 评估 TaskOnly 模型
         task_only_metrics, _, task_only_preds_original = evaluate_model(
             task_only_trainer.model, test_loader, config.DEVICE, scaler, config, logger,
-            model_name=f"{student_model_name}_TaskOnly", plots_dir=os.path.join(config.RESULTS_DIR, "plots"),
+            model_name=f"{student_model_name}_TaskOnly",
             teacher_predictions_original=teacher_preds_original, # Pass teacher's original predictions
             dataset_type="Test Set"
         )
@@ -289,7 +289,7 @@ def run_experiment(
         # 评估 Follower 模型
         follower_metrics, _, follower_preds_original = evaluate_model(
             follower_trainer.model, test_loader, config.DEVICE, scaler, config, logger,
-            model_name=f"{student_model_name}_Follower", plots_dir=os.path.join(config.RESULTS_DIR, "plots"),
+            model_name=f"{student_model_name}_Follower",
             teacher_predictions_original=teacher_preds_original, # Pass teacher's original predictions
             dataset_type="Test Set"
         )
@@ -324,7 +324,7 @@ def run_experiment(
         # 评估 RDT 模型
         rdt_metrics, _, rdt_preds_original = evaluate_model(
             rdt_trainer.model, test_loader, config.DEVICE, scaler, config, logger,
-            model_name=f"{student_model_name}_RDT", plots_dir=os.path.join(config.RESULTS_DIR, "plots"),
+            model_name=f"{student_model_name}_RDT", 
             teacher_predictions_original=teacher_preds_original, # Pass teacher's original predictions
             dataset_type="Test Set"
         )
