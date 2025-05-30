@@ -1,12 +1,14 @@
 import torch
 import numpy as np
 from sklearn.metrics import mean_squared_error, mean_absolute_error
+from sklearn.metrics.pairwise import cosine_similarity as sklearn_cosine_similarity # 重命名以避免与现有函数冲突
 from src import config, utils
 from tqdm import tqdm
 import pandas as pd
 import os
-from scipy.spatial.distance import cosine
+from scipy.spatial.distance import cosine # 现有自定义cosine_similarity使用它
 
+# 现有的自定义 cosine_similarity 函数保持不变
 def cosine_similarity(vec1, vec2):
     """
     计算两个向量的余弦相似度。
@@ -49,6 +51,41 @@ def calculate_similarity_metrics(student_preds, teacher_preds, metric_type):
         raise ValueError(f"Unsupported similarity metric type: {metric_type}")
 
     return {f'similarity_{metric_type}': similarity_score}
+
+
+def calculate_error_cosine_similarity(y_true, pred1, pred2):
+  """
+  计算两个模型预测误差的余弦相似度。
+  误差定义为: error = y_true - pred。
+  """
+  y_true = np.asarray(y_true)
+  pred1 = np.asarray(pred1)
+  pred2 = np.asarray(pred2)
+
+  error1 = y_true - pred1
+  error2 = y_true - pred2
+
+  # 确保误差是二维的，即使只有一个特征
+  error1_flat = error1.reshape(error1.shape[0]*error1.shape[1], -1) if error1.ndim > 2 else error1.reshape(error1.shape[0], -1)
+  error2_flat = error2.reshape(error2.shape[0]*error2.shape[1], -1) if error2.ndim > 2 else error2.reshape(error2.shape[0], -1)
+  
+  # 将所有样本的误差展平为一个长向量进行比较
+  error1_flat_overall = error1_flat.flatten().reshape(1, -1)
+  error2_flat_overall = error2_flat.flatten().reshape(1, -1)
+
+  if error1_flat_overall.shape[1] == 0 or error2_flat_overall.shape[1] == 0:
+    return np.nan # 如果没有数据点
+
+  # 如果两个误差向量都为零，则它们是完全相似的
+  if np.all(error1_flat_overall == 0) and np.all(error2_flat_overall == 0):
+    return 1.0
+  # 如果只有一个误差向量为零，则它们不相似（除非另一个也为零，已处理）
+  elif np.all(error1_flat_overall == 0) or np.all(error2_flat_overall == 0):
+    return 0.0
+  
+  similarity = sklearn_cosine_similarity(error1_flat_overall, error2_flat_overall)
+  return similarity[0, 0]
+
 
 def mean_absolute_percentage_error(y_true, y_pred, epsilon=1e-8):
     """计算 MAPE，处理分母为零的情况"""
@@ -220,12 +257,39 @@ def evaluate_model(model, dataloader, device, scaler, config_obj, logger, model_
         logger.info(f"  {key.upper()}: {value:.6f}")
 
     # --- 计算学生-教师模型相似度 (如果提供了教师预测) ---
+    similarity_metrics = {} # 初始化 similarity_metrics 字典
     if teacher_predictions_original is not None:
         logger.info(f"\n--- Calculating Student-Teacher Similarity ({config_obj.SIMILARITY_METRIC}) ---")
-        similarity_metrics = calculate_similarity_metrics(predictions_original, teacher_predictions_original, config_obj.SIMILARITY_METRIC)
-        metrics.update(similarity_metrics)
-        for key, value in similarity_metrics.items():
-            logger.info(f"  {key.replace('_', ' ').title()}: {value:.6f}")
+        # 原有的相似度计算
+        try:
+            standard_similarity_metrics = calculate_similarity_metrics(predictions_original, teacher_predictions_original, config_obj.SIMILARITY_METRIC)
+            similarity_metrics.update(standard_similarity_metrics)
+            for key, value in standard_similarity_metrics.items():
+                logger.info(f"  {key.replace('_', ' ').title()}: {value:.6f}")
+        except Exception as e:
+            logger.error(f"Error calculating standard similarity: {e}")
+            # 确保即使出错，键也存在
+            similarity_metrics[f'similarity_{config_obj.SIMILARITY_METRIC}'] = np.nan
+
+
+        # 计算 error_cos_similarity
+        # true_values_original, predictions_original (model1_pred), teacher_predictions_original (model2_pred)
+        if true_values_original is not None and predictions_original is not None: # teacher_predictions_original 已经在外部 if 中检查
+            try:
+                error_cos_sim = calculate_error_cosine_similarity(true_values_original, predictions_original, teacher_predictions_original)
+                similarity_metrics['error_cos_similarity'] = error_cos_sim
+                logger.info(f"  Error Cosine Similarity: {error_cos_sim:.6f}")
+            except Exception as e:
+                logger.error(f"Error calculating error_cos_similarity: {e}")
+                similarity_metrics['error_cos_similarity'] = np.nan
+        else:
+            similarity_metrics['error_cos_similarity'] = np.nan
+    else:
+        # 如果 teacher_predictions_original 为 None，所有基于它的相似度指标都应为 NaN
+        similarity_metrics[f'similarity_{config_obj.SIMILARITY_METRIC}'] = np.nan # 确保原有指标键存在
+        similarity_metrics['error_cos_similarity'] = np.nan
+
+    metrics.update(similarity_metrics) # 将所有计算得到的相似度指标（包括新的和旧的）合并到主 metrics 字典中
 
     # --- 保存预测结果和真实值 (可选，用于详细分析) ---
     # np.save(os.path.join(config.RESULTS_DIR, f"{model_name}_preds.npy"), predictions_original)

@@ -387,3 +387,35 @@ To maintain consistent model behavior and training stability, specific default v
     - 从 `evaluate_model` 函数定义中移除了 `plots_dir` 参数。
     - 将原先位于 `return` 语句之后的绘图代码块（约第268-283行）移动到了 `return` 语句（新的第282行）之前。
     - 修改了这些移动的绘图代码块中的 `save_dir` 参数，将其从原来的 `plots_dir` 更改为 `actual_plots_dir`。
+---
+### Decision
+[2025-05-31 01:00:11] - 添加 error_cos_similarity 作为新的模型间相似度评估指标。
+
+**Rationale:**
+提供一种从预测误差角度衡量两个模型行为相似性的方法，补充现有基于直接预测输出的相似度度量。
+
+**Implementation Details:**
+*   在 [`src/evaluator.py`](src/evaluator.py) 的 `evaluate_model` 中实现。
+*   误差 = `y_true` - `prediction`。
+*   计算模型误差向量间的余弦相似度。
+*   指标命名为 `error_cos_similarity`，包含在 `similarity_metrics` 中。
+*   实验脚本 ([`run_evaluation_experiments.py`](run_evaluation_experiments.py), [`run_quick_test_evaluation.py`](run_quick_test_evaluation.py)) 更新以处理和保存此指标。
+
+---
+### Decision (Code)
+[2025-05-31 01:03:59] - 实现 error_cos_similarity 指标
+
+**Rationale:**
+根据用户请求，在 `src/evaluator.py` 中实现 `error_cos_similarity` 指标，用于评估两个模型预测误差之间的余弦相似度。此指标为模型比较提供了新的维度。
+
+**Details:**
+- **[`src/evaluator.py`](src/evaluator.py)**:
+    - 添加了 `from sklearn.metrics.pairwise import cosine_similarity as sklearn_cosine_similarity` 导入。
+    - 新增了 `calculate_error_cosine_similarity(y_true, pred1, pred2)` 函数，该函数计算 `y_true - pred1` 和 `y_true - pred2` 两个误差向量之间的余弦相似度。
+    - 修改了 `evaluate_model` 函数：
+        - 在 `teacher_predictions_original` 可用时，调用 `calculate_error_cosine_similarity`。
+        - 将返回的 `error_cos_similarity` 值添加到 `similarity_metrics` 字典中。
+        - 确保即使在计算失败或 `teacher_predictions_original` 不可用时，`error_cos_similarity` 键也以 `np.nan` 的形式存在于 `similarity_metrics` 中。
+        - `similarity_metrics` 随后会合并到 `metrics` 字典中。
+- **[`run_evaluation_experiments.py`](run_evaluation_experiments.py) 和 [`run_quick_test_evaluation.py`](run_quick_test_evaluation.py)**:
+    - 无需直接修改。这些脚本中的现有 CSV 保存逻辑会自动包含来自 `evaluate_model` 返回的 `metrics` 字典中的新 `error_cos_similarity` 指标（以 `MODELTYPE_error_cos_similarity` 的形式出现在主结果CSV中，并以 `MODELTYPE_error_cos_similarity` 的形式出现在相似度结果CSV中，如果原始键包含 'similarity'）。

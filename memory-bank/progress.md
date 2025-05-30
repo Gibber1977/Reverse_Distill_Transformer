@@ -97,3 +97,4 @@ This file tracks the project's progress using a task list format.
 * [2025-05-30 22:32:51] - Completed: Ensured default dropout (0.3) and head_dropout (0.0) for PatchTST models by modifying `src/models.py` and `src/config.py`.
 * [2025-05-30 22:56:00] - 完成时间处理逻辑优化，以支持“分钟”级别，并同步更新到相关实验脚本和配置文件。具体包括更新 `src/data_handler.py` 中的时间特征函数，在 `src/config.py` 中引入 `DATASET_TIME_FREQ_MAP`，以及修改实验脚本以传递 `time_freq` 参数。
 * [2025-05-31 00:43:15] - 完成对 `src/evaluator.py` 的修改：移除 `evaluate_model` 函数中未使用的 `plots_dir` 参数，调整绘图代码块位置并更新其目录参数。
+* [2025-05-31 01:03:59] - 完成 `error_cos_similarity` 指标的实现。在 `src/evaluator.py` 中添加了 `calculate_error_cosine_similarity` 函数，并修改了 `evaluate_model` 以集成此新指标。确认了实验脚本 (`run_evaluation_experiments.py`, `run_quick_test_evaluation.py`) 的现有CSV保存逻辑将自动处理新指标。
