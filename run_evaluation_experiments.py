@@ -221,7 +221,7 @@ def run_experiment(
         # 评估 Teacher 模型
         teacher_metrics, teacher_true_original, teacher_preds_original = evaluate_model(
             teacher_model, test_loader, config.DEVICE, scaler, config, logger,
-            model_name=teacher_model_name, plots_dir=os.path.join(config.RESULTS_DIR, "plots"),
+            model_name=teacher_model_name,
             dataset_type="Test Set"
         )
         for metric, value in teacher_metrics.items():
