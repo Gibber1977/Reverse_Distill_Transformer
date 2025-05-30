@@ -16,6 +16,7 @@ class Config:
         self.DATE_COL = 'date'
         self.TARGET_COLS = ['OT']
         self.TIME_FREQ = 'D'
+        self.TIME_ENCODING_TYPE = 'linear' # 'linear' or 'cyclic'
 
         # --- 数据处理配置 ---
         self.LOOKBACK_WINDOW = 96

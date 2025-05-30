@@ -6,6 +6,133 @@ import torch
 from src import config
 import os
 import random
+import math
+
+def time_features(dates, freq='h'):
+    """
+    Generates time features from a pandas DatetimeIndex.
+    Args:
+        dates (pd.DatetimeIndex): Datetime index to extract features from.
+        freq (str): Frequency of the time series ('h' for hour, 'd' for day, 'w' for week, 'm' for month, 'q' for quarter, 'y' for year).
+    Returns:
+        np.ndarray: Array of time features.
+    """
+    features = []
+    if freq == 'h':
+        features.append(dates.hour.values / 23.0 - 0.5) # Normalize to [-0.5, 0.5]
+        features.append(dates.dayofweek.values / 6.0 - 0.5) # Normalize to [-0.5, 0.5]
+        features.append(dates.dayofyear.values / 365.0 - 0.5) # Normalize to [-0.5, 0.5]
+        features.append(dates.month.values / 11.0 - 0.5) # Normalize to [-0.5, 0.5]
+        features.append(dates.isocalendar().week.values / 52.0 - 0.5) # Normalize to [-0.5, 0.5]
+    elif freq == 'd':
+        features.append(dates.dayofweek.values / 6.0 - 0.5)
+        features.append(dates.dayofyear.values / 365.0 - 0.5)
+        features.append(dates.month.values / 11.0 - 0.5)
+        features.append(dates.isocalendar().week.values / 52.0 - 0.5)
+    elif freq == 'w':
+        features.append(dates.dayofweek.values / 6.0 - 0.5)
+        features.append(dates.dayofyear.values / 365.0 - 0.5)
+        features.append(dates.month.values / 11.0 - 0.5)
+        features.append(dates.isocalendar().week.values / 52.0 - 0.5)
+    elif freq == 'm':
+        features.append(dates.month.values / 11.0 - 0.5)
+        features.append(dates.quarter.values / 3.0 - 0.5)
+        features.append(dates.year.values) # Year is not cyclic, keep as is or normalize differently
+    elif freq == 'q':
+        features.append(dates.quarter.values / 3.0 - 0.5)
+        features.append(dates.month.values / 11.0 - 0.5)
+        features.append(dates.year.values)
+    elif freq == 'y':
+        features.append(dates.year.values)
+    else: # Default to hour, dayofweek, dayofyear, month, weekofyear
+        features.append(dates.hour.values / 23.0 - 0.5)
+        features.append(dates.dayofweek.values / 6.0 - 0.5)
+        features.append(dates.dayofyear.values / 365.0 - 0.5)
+        features.append(dates.month.values / 11.0 - 0.5)
+        features.append(dates.isocalendar().week.values / 52.0 - 0.5)
+
+    return np.array(features).transpose(1, 0)
+
+def cyclic_time_features(dates, freq='h'):
+    """
+    Generates cyclic time features (sin/cos) from a pandas DatetimeIndex.
+    Args:
+        dates (pd.DatetimeIndex): Datetime index to extract features from.
+        freq (str): Frequency of the time series ('h' for hour, 'd' for day, etc.).
+    Returns:
+        np.ndarray: Array of cyclic time features.
+    """
+    features = []
+    if freq == 'h':
+        # Hour (0-23)
+        features.append(np.sin(2 * math.pi * dates.hour.values / 24.0))
+        features.append(np.cos(2 * math.pi * dates.hour.values / 24.0))
+        # Day of week (0-6)
+        features.append(np.sin(2 * math.pi * dates.dayofweek.values / 7.0))
+        features.append(np.cos(2 * math.pi * dates.dayofweek.values / 7.0))
+        # Day of year (1-366)
+        features.append(np.sin(2 * math.pi * dates.dayofyear.values / 366.0))
+        features.append(np.cos(2 * math.pi * dates.dayofyear.values / 366.0))
+        # Month (1-12)
+        features.append(np.sin(2 * math.pi * dates.month.values / 12.0))
+        features.append(np.cos(2 * math.pi * dates.month.values / 12.0))
+        # Week of year (1-53)
+        features.append(np.sin(2 * math.pi * dates.isocalendar().week.values / 53.0))
+        features.append(np.cos(2 * math.pi * dates.isocalendar().week.values / 53.0))
+    elif freq == 'd':
+        # Day of week (0-6)
+        features.append(np.sin(2 * math.pi * dates.dayofweek.values / 7.0))
+        features.append(np.cos(2 * math.pi * dates.dayofweek.values / 7.0))
+        # Day of year (1-366)
+        features.append(np.sin(2 * math.pi * dates.dayofyear.values / 366.0))
+        features.append(np.cos(2 * math.pi * dates.dayofyear.values / 366.0))
+        # Month (1-12)
+        features.append(np.sin(2 * math.pi * dates.month.values / 12.0))
+        features.append(np.cos(2 * math.pi * dates.month.values / 12.0))
+        # Week of year (1-53)
+        features.append(np.sin(2 * math.pi * dates.isocalendar().week.values / 53.0))
+        features.append(np.cos(2 * math.pi * dates.isocalendar().week.values / 53.0))
+    elif freq == 'w':
+        # Day of week (0-6) - if weekly data, this might not be relevant or always 0
+        features.append(np.sin(2 * math.pi * dates.dayofweek.values / 7.0))
+        features.append(np.cos(2 * math.pi * dates.dayofweek.values / 7.0))
+        # Month (1-12)
+        features.append(np.sin(2 * math.pi * dates.month.values / 12.0))
+        features.append(np.cos(2 * math.pi * dates.month.values / 12.0))
+        # Week of year (1-53)
+        features.append(np.sin(2 * math.pi * dates.isocalendar().week.values / 53.0))
+        features.append(np.cos(2 * math.pi * dates.isocalendar().week.values / 53.0))
+    elif freq == 'm':
+        # Month (1-12)
+        features.append(np.sin(2 * math.pi * dates.month.values / 12.0))
+        features.append(np.cos(2 * math.pi * dates.month.values / 12.0))
+        # Quarter (1-4)
+        features.append(np.sin(2 * math.pi * dates.quarter.values / 4.0))
+        features.append(np.cos(2 * math.pi * dates.quarter.values / 4.0))
+    elif freq == 'q':
+        # Quarter (1-4)
+        features.append(np.sin(2 * math.pi * dates.quarter.values / 4.0))
+        features.append(np.cos(2 * math.pi * dates.quarter.values / 4.0))
+        # Month (1-12)
+        features.append(np.sin(2 * math.pi * dates.month.values / 12.0))
+        features.append(np.cos(2 * math.pi * dates.month.values / 12.0))
+    elif freq == 'y':
+        # Year is not typically cyclic in this sense, but if needed, could use a very long cycle or specific events
+        # For now, no cyclic features for year itself.
+        pass
+    else: # Default to hour, dayofweek, dayofyear, month, weekofyear
+        features.append(np.sin(2 * math.pi * dates.hour.values / 24.0))
+        features.append(np.cos(2 * math.pi * dates.hour.values / 24.0))
+        features.append(np.sin(2 * math.pi * dates.dayofweek.values / 7.0))
+        features.append(np.cos(2 * math.pi * dates.dayofweek.values / 7.0))
+        features.append(np.sin(2 * math.pi * dates.dayofyear.values / 366.0))
+        features.append(np.cos(2 * math.pi * dates.dayofyear.values / 366.0))
+        features.append(np.sin(2 * math.pi * dates.month.values / 12.0))
+        features.append(np.cos(2 * math.pi * dates.month.values / 12.0))
+        features.append(np.sin(2 * math.pi * dates.isocalendar().week.values / 53.0))
+        features.append(np.cos(2 * math.pi * dates.isocalendar().week.values / 53.0))
+
+    return np.array(features).transpose(1, 0)
 
 def add_noise(data, noise_type, noise_level):
     """
@@ -209,6 +336,29 @@ def load_and_preprocess_data(dataset_path, cfg, logger):
     except KeyError:
         logger.error(f"Error: One or more target columns {cfg.TARGET_COLS} not found.")
         raise
+
+    # --- 时间特征编码 ---
+    dates = df[cfg.DATE_COL]
+    time_features_data = None
+    if cfg.TIME_ENCODING_TYPE == 'linear':
+        logger.info("Applying linear time encoding.")
+        time_features_data = time_features(dates, freq=cfg.TIME_FREQ)
+    elif cfg.TIME_ENCODING_TYPE == 'cyclic':
+        logger.info("Applying cyclic time encoding.")
+        time_features_data = cyclic_time_features(dates, freq=cfg.TIME_FREQ)
+    else:
+        logger.warning(f"Unknown TIME_ENCODING_TYPE: {cfg.TIME_ENCODING_TYPE}. No time features will be added.")
+
+    if time_features_data is not None:
+        # 将时间特征转换为 DataFrame，并确保列名唯一
+        time_feature_cols = [f'time_feature_{i}' for i in range(time_features_data.shape[1])]
+        df_time_features = pd.DataFrame(time_features_data, index=df.index, columns=time_feature_cols)
+        
+        # 将时间特征与目标数据合并
+        df_target = pd.concat([df_target, df_time_features], axis=1)
+        logger.info(f"Time features added. New data shape: {df_target.shape}")
+        logger.info(f"New data columns: {df_target.columns.tolist()}")
+
 
     # 处理缺失值 (简单填充，可以用更复杂的方法)
     if df_target.isnull().values.any():
