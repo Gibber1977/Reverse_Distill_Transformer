@@ -93,6 +93,21 @@ class BaseTrainer:
 
     def train(self):
         logging.info(f"\n--- Starting Training for {self.model_name} ---")
+
+        # 打印模型设备信息
+        try: # 使用 try-except 块以防万一
+            if hasattr(self.model, 'parameters') and next(self.model.parameters(), None) is not None:
+                model_device = next(self.model.parameters()).device
+                logging.info(f"模型将在设备上运行: {model_device}")
+                if "cuda" in str(model_device).lower():
+                    logging.info("CUDA 可用且模型在 CUDA 上运行。")
+                else:
+                    logging.info("模型在 CPU 上运行。")
+            else:
+                logging.warning("无法确定模型设备，模型可能没有参数或未正确初始化。")
+        except Exception as e:
+            logging.warning(f"检查模型设备时发生错误: {e}")
+
         start_time = time.time()
         for epoch in range(self.epochs):
             epoch_start_time = time.time()
@@ -157,16 +172,22 @@ class StandardTrainer(BaseTrainer):
         for batch_x, batch_y, batch_hist_exog, batch_futr_exog in train_iterator:
             batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
 
-            self.optimizer.zero_grad()
-
-            input_dict = {'insample_y': batch_x}
+            # Split input_x for DLinear compatibility
+            insample_y = batch_x[:, :, :len(self.config.TARGET_COLS)]
+            X_df_batch = batch_x[:, :, len(self.config.TARGET_COLS):]
+            if X_df_batch.shape[2] == 0: # If no exogenous features
+                X_df_batch = None
+            
+            input_dict = {'insample_y': insample_y, 'X_df': X_df_batch}
             # Always add exog keys, setting to None if not provided by loader
             input_dict['hist_exog'] = batch_hist_exog.to(self.device) if batch_hist_exog is not None else None
             input_dict['futr_exog'] = batch_futr_exog.to(self.device) if batch_futr_exog is not None else None
 
+            self.optimizer.zero_grad()
             outputs = self.model(input_dict) # [batch, horizon, features]
 
-            loss = self.loss_fn(outputs, batch_y)
+            target_y_for_loss = batch_y[:, :, :len(self.config.TARGET_COLS)]
+            loss = self.loss_fn(outputs, target_y_for_loss)
             loss.backward()
             self.optimizer.step()
 
@@ -193,13 +214,20 @@ class StandardTrainer(BaseTrainer):
             for batch_x, batch_y, batch_hist_exog, batch_futr_exog in val_iterator:
                 batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
 
-                input_dict = {'insample_y': batch_x}
+                # Split input_x for DLinear compatibility
+                insample_y = batch_x[:, :, :len(self.config.TARGET_COLS)]
+                X_df_batch = batch_x[:, :, len(self.config.TARGET_COLS):]
+                if X_df_batch.shape[2] == 0: # If no exogenous features
+                    X_df_batch = None
+                
+                input_dict = {'insample_y': insample_y, 'X_df': X_df_batch}
                 input_dict['hist_exog'] = batch_hist_exog.to(self.device) if batch_hist_exog is not None else None
                 input_dict['futr_exog'] = batch_futr_exog.to(self.device) if batch_futr_exog is not None else None
 
                 outputs = self.model(input_dict)
 
-                loss = self.loss_fn(outputs, batch_y)
+                target_y_for_loss = batch_y[:, :, :len(self.config.TARGET_COLS)]
+                loss = self.loss_fn(outputs, target_y_for_loss)
                 total_loss += loss.item()
                 val_iterator.set_postfix(loss=loss.item())
 
@@ -246,11 +274,17 @@ class RDT_Trainer(BaseTrainer):
         for batch_x, batch_y_true, batch_hist_exog, batch_futr_exog in train_iterator:
             batch_x, batch_y_true = batch_x.to(self.device), batch_y_true.to(self.device)
 
-            # Prepare input dicts, always including exog keys
-            input_dict_base = {'insample_y': batch_x}
+            # Split input_x for DLinear compatibility
+            insample_y = batch_x[:, :, :len(self.config.TARGET_COLS)]
+            X_df_batch = batch_x[:, :, len(self.config.TARGET_COLS):]
+            if X_df_batch.shape[2] == 0: # If no exogenous features
+                X_df_batch = None
+            
+            input_dict_base = {'insample_y': insample_y, 'X_df': X_df_batch}
+            # Always add exog keys, setting to None if not provided by loader
             input_dict_base['hist_exog'] = batch_hist_exog.to(self.device) if batch_hist_exog is not None else None
             input_dict_base['futr_exog'] = batch_futr_exog.to(self.device) if batch_futr_exog is not None else None
-
+            
             # 1. 教师模型预测 (不计算梯度)
             with torch.no_grad():
                 input_dict_teacher = input_dict_base.copy() # Use copy just in case
@@ -262,7 +296,8 @@ class RDT_Trainer(BaseTrainer):
             batch_y_student = self.model(input_dict_student) # self.model is student
 
             # 3. 计算损失
-            loss_task = self.loss_fn(batch_y_student, batch_y_true)
+            target_y_for_loss = batch_y_true[:, :, :len(self.config.TARGET_COLS)]
+            loss_task = self.loss_fn(batch_y_student, target_y_for_loss)
             # detach教师预测，阻止梯度流向教师
             loss_distill = self.distill_loss_fn(batch_y_student, batch_y_teacher.detach())
 
@@ -307,7 +342,13 @@ class RDT_Trainer(BaseTrainer):
             for batch_x, batch_y_true, batch_hist_exog, batch_futr_exog in val_iterator:
                 batch_x, batch_y_true = batch_x.to(self.device), batch_y_true.to(self.device)
 
-                input_dict = {'insample_y': batch_x}
+                # Split input_x for DLinear compatibility
+                insample_y = batch_x[:, :, :len(self.config.TARGET_COLS)]
+                X_df_batch = batch_x[:, :, len(self.config.TARGET_COLS):]
+                if X_df_batch.shape[2] == 0: # If no exogenous features
+                    X_df_batch = None
+
+                input_dict = {'insample_y': insample_y, 'X_df': X_df_batch}
                 # Always add exog keys, setting to None if not provided by loader
                 input_dict['hist_exog'] = batch_hist_exog.to(self.device) if batch_hist_exog is not None else None
                 input_dict['futr_exog'] = batch_futr_exog.to(self.device) if batch_futr_exog is not None else None
@@ -315,7 +356,8 @@ class RDT_Trainer(BaseTrainer):
                 batch_y_student = self.model(input_dict)
                 batch_y_teacher = self.teacher_model(input_dict) # 获取教师模型预测
 
-                loss_task = self.loss_fn(batch_y_student, batch_y_true) # 只计算 Task Loss
+                target_y_for_loss = batch_y_true[:, :, :len(self.config.TARGET_COLS)]
+                loss_task = self.loss_fn(batch_y_student, target_y_for_loss) # 只计算 Task Loss
                 total_task_loss += loss_task.item()
                 val_iterator.set_postfix(val_task_loss=loss_task.item())
 
@@ -333,16 +375,29 @@ class RDT_Trainer(BaseTrainer):
         # 将 scaled 的预测结果逆变换回原始尺度，以便计算相似度
         # evaluate_model 内部会处理 student_preds_all 的逆变换
         # 但 teacher_preds_all 需要在这里逆变换，因为 evaluate_model 不会处理它
-        n_samples, horizon, n_features = teacher_preds_all.shape
-        teacher_preds_reshaped = teacher_preds_all.view(-1, n_features)
+        n_samples, horizon, n_teacher_output_features = teacher_preds_all.shape # n_teacher_output_features is usually len(TARGET_COLS)
+        teacher_preds_reshaped_scaled = teacher_preds_all.view(-1, n_teacher_output_features).cpu().numpy()
+
         try:
-            teacher_preds_original = self.scaler.inverse_transform(teacher_preds_reshaped)
+            # Create a dummy array with N_FEATURES for inverse transform
+            dummy_teacher_preds_for_inverse = np.zeros((teacher_preds_reshaped_scaled.shape[0], self.config.N_FEATURES))
+            dummy_teacher_preds_for_inverse[:, :len(self.config.TARGET_COLS)] = teacher_preds_reshaped_scaled # Place predictions in target columns
+            
+            teacher_preds_original_all_features = self.scaler.inverse_transform(dummy_teacher_preds_for_inverse)
+            # Extract only the target column(s)
+            teacher_preds_original = teacher_preds_original_all_features[:, :len(self.config.TARGET_COLS)]
+            
+            # Reshape back to (n_samples, horizon, len(TARGET_COLS))
+            teacher_preds_original = teacher_preds_original.reshape(n_samples, horizon, len(self.config.TARGET_COLS))
+            
         except Exception as e:
             logging.error(f"Error during inverse transform of teacher predictions: {e}. Using scaled values for similarity.")
-            teacher_preds_original = teacher_preds_reshaped
-        teacher_preds_original = teacher_preds_original.reshape(n_samples, horizon, n_features)
+            # Fallback: use scaled predictions (already shaped as n_samples, horizon, n_teacher_output_features)
+            # Ensure it's a numpy array for consistency if evaluate_model expects it
+            teacher_preds_original = teacher_preds_all.cpu().numpy()
 
         # 计算验证集上的评估指标
+        # student_preds_all (from self.model) will be handled by evaluate_model's internal inverse transform
         val_metrics, _, _ = evaluate_model(
             self.model, self.val_loader, self.device, self.scaler, self.config, logging,
             model_name=self.model_name, plots_dir=os.path.join(self.config.RESULTS_DIR, "plots"),

@@ -24,7 +24,8 @@ def get_model(model_name, config_instance):
     # 从 config_instance 获取全局配置
     lookback = config_instance.LOOKBACK_WINDOW
     horizon = config_instance.PREDICTION_HORIZON
-    n_series = len(config_instance.TARGET_COLS)
+    # n_series = len(config_instance.TARGET_COLS) # Replaced by N_FEATURES
+    n_features = config_instance.N_FEATURES
 
     # 根据模型名称选择对应的配置字典
     if model_name == 'DLinear':
@@ -49,7 +50,7 @@ def get_model(model_name, config_instance):
         cfg = {} # Fallback, though should be handled by ValueError below
 
     print(f"Using specific model config: {cfg}")
-    print(f"Global Params: lookback={lookback}, horizon={horizon}, n_series={n_series}")
+    print(f"Global Params: lookback={lookback}, horizon={horizon}, n_features={n_features}")
 
     # --- 可以添加其他模型的选择 ---
     # elif model_name == 'NLinear':
@@ -62,43 +63,49 @@ def get_model(model_name, config_instance):
     if model_name == 'DLinear':
         # NeuralForecast models often expect input_size, h, n_series
         # Ensure cfg has the correct input_size, h, n_series (handled in main.py update_config)
-        model = DLinear(**cfg)
+        model = DLinear(n_series=n_features, **cfg)
     elif model_name == 'PatchTST':
-        # Ensure cfg has the correct input_size, h, n_series
-        model = PatchTST(**cfg)
+        # Ensure cfg has the correct input_size, h
+        # Set default dropout values for PatchTST if not provided
+        patchtst_params = cfg.copy() # Avoid modifying the original config dict directly
+        if patchtst_params.get('dropout') is None:
+            patchtst_params['dropout'] = 0.3
+        if patchtst_params.get('head_dropout') is None:
+            patchtst_params['head_dropout'] = 0.0
+        model = PatchTST(n_series=n_features, **patchtst_params)
     elif model_name == 'NLinear':
-        # Ensure cfg has the correct input_size, h, n_series
-        model = NLinear(**cfg)
+        # Ensure cfg has the correct input_size, h
+        model = NLinear(n_series=n_features, **cfg)
     elif model_name == 'MLP':
         # Custom MLP expects specific args from its __init__
-        model = MLPModel(input_size=lookback, h=horizon, n_series=n_series,
+        model = MLPModel(input_size=lookback, h=horizon, n_series=n_features,
                          hidden_size=cfg.get('hidden_size', 512),
                          num_layers=cfg.get('num_layers', 2),
                          activation=cfg.get('activation', 'relu'),
                          dropout=cfg.get('dropout', 0.1))
     elif model_name == 'RNN':
         # Custom RNN expects specific args
-        model = RNNModel(n_series=n_series, lookback=lookback, h=horizon,
+        model = RNNModel(n_series=n_features, lookback=lookback, h=horizon,
                          hidden_size=cfg.get('hidden_size', 128),
                          num_layers=cfg.get('num_layers', 2),
                          dropout=cfg.get('dropout', 0.1),
-                         output_size=n_series) # Assuming output size matches n_series
+                         output_size=n_features)
     elif model_name == 'LSTM':
         # Custom LSTM expects specific args
-        model = LSTMModel(n_series=n_series, lookback=lookback, h=horizon,
+        model = LSTMModel(n_series=n_features, lookback=lookback, h=horizon,
                           hidden_size=cfg.get('hidden_size', 128),
                           num_layers=cfg.get('num_layers', 2),
                           dropout=cfg.get('dropout', 0.1),
-                          output_size=n_series) # Assuming output size matches n_series
+                          output_size=n_features)
     elif model_name == 'Autoformer':
-        # Ensure cfg has the correct input_size, h, n_series
-        model = Autoformer(**cfg)
+        # Ensure cfg has the correct input_size, h
+        model = Autoformer(n_series=n_features, **cfg)
     elif model_name == 'Informer':
-        # Ensure cfg has the correct input_size, h, n_series
-        model = Informer(**cfg)
+        # Ensure cfg has the correct input_size, h
+        model = Informer(n_series=n_features, **cfg)
     elif model_name == 'FEDformer':
-        # Ensure cfg has the correct input_size, h, n_series
-        model = FEDformer(**cfg)
+        # Ensure cfg has the correct input_size, h
+        model = FEDformer(n_series=n_features, **cfg)
     elif model_name == 'ARIMA':
         if not _STATSMODELS_AVAILABLE:
              raise ImportError("statsmodels library is required for ARIMA but not installed.")
@@ -111,17 +118,17 @@ def get_model(model_name, config_instance):
             f"neural network training paradigm expected by this factory function. "
             f"Consider handling {model_name} in a separate script or workflow."
         )
-    elif model_name == 'VAR':
-        if not _STATSMODELS_AVAILABLE:
-             raise ImportError("statsmodels library is required for VAR but not installed.")
-        if n_series <= 1:
-            raise ValueError("VAR model requires multiple time series (n_series > 1).")
-        # Same limitations as ARIMA apply.
-        raise NotImplementedError(
-            f"{model_name} is a classical model (statsmodels) and doesn't fit the "
-            f"neural network training paradigm expected by this factory function. "
-            f"Consider handling {model_name} in a separate script or workflow, especially for multivariate series."
-        )
+    # elif model_name == 'VAR':
+    #     if not _STATSMODELS_AVAILABLE:
+    #          raise ImportError("statsmodels library is required for VAR but not installed.")
+    #     if n_series <= 1:
+    #         raise ValueError("VAR model requires multiple time series (n_series > 1).")
+    #     # Same limitations as ARIMA apply.
+    #     raise NotImplementedError(
+    #         f"{model_name} is a classical model (statsmodels) and doesn't fit the "
+    #         f"neural network training paradigm expected by this factory function. "
+    #         f"Consider handling {model_name} in a separate script or workflow, especially for multivariate series."
+    #     )
     else:
         raise ValueError(f"Unsupported model name: {model_name}")
     # --- Parameter Counting (for nn.Module based models) ---

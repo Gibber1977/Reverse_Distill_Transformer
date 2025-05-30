@@ -103,7 +103,7 @@ def calculate_metrics(y_true, y_pred, metrics_list):
 
     return metrics
 
-def predict(model, dataloader, device):
+def predict(model, dataloader, device, config_obj): # 添加 config_obj 参数
     """使用模型进行预测"""
     # 确保 model 是一个 PyTorch 模型实例
     if not isinstance(model, torch.nn.Module):
@@ -123,10 +123,15 @@ def predict(model, dataloader, device):
         predict_iterator = tqdm(dataloader, desc="Predicting", leave=False)
         for batch_x, batch_y, batch_hist_exog, batch_futr_exog in predict_iterator:
             # 将输入数据移动到指定设备
-            batch_x, batch_y = batch_x.to(device), batch_y.to(device)
+            batch_x_device, batch_y_device = batch_x.to(device), batch_y.to(device) # 使用新变量名以避免混淆原始 batch_x
 
-            # 构建模型输入字典
-            input_dict = {'insample_y': batch_x}
+            # Split input_x for DLinear compatibility
+            insample_y = batch_x_device[:, :, :len(config_obj.TARGET_COLS)]
+            X_df_batch = batch_x_device[:, :, len(config_obj.TARGET_COLS):]
+            if X_df_batch.shape[2] == 0: # If no exogenous features
+                X_df_batch = None
+            
+            input_dict = {'insample_y': insample_y, 'X_df': X_df_batch}
             if batch_hist_exog is not None:
                 batch_hist_exog = batch_hist_exog.to(device)
                 input_dict['hist_exog'] = batch_hist_exog
@@ -143,7 +148,8 @@ def predict(model, dataloader, device):
 
             # 将预测结果和真实值从设备移动到 CPU 并添加到列表中
             all_preds.append(outputs.cpu())
-            all_trues.append(batch_y.cpu())
+            target_y_to_append = batch_y_device[:, :, :len(config_obj.TARGET_COLS)]
+            all_trues.append(target_y_to_append.cpu())
 
     # 将所有批次的预测结果和真实值连接起来
     predictions = torch.cat(all_preds, dim=0)
@@ -167,30 +173,47 @@ def evaluate_model(model, dataloader, device, scaler, config_obj, logger, model_
     dataset_type: 字符串，表示正在评估的数据集类型 (例如 "Validation Set" 或 "Test Set")
     """
     logger.info(f"\n--- Evaluating {model_name} on {dataset_type} ---")
-    true_values_scaled, predictions_scaled = predict(model, dataloader, device)
+    true_values_scaled, predictions_scaled = predict(model, dataloader, device, config_obj) # 传递 config_obj
 
     # --- 逆变换回原始尺度 ---
-    # scaler.inverse_transform 期望 [n_samples, n_features]
-    # 需要重塑数据：[batch, horizon, features] -> [batch*horizon, features]
-    n_samples, horizon, n_features = predictions_scaled.shape
-    pred_reshaped = predictions_scaled.view(-1, n_features).numpy()
-    true_reshaped = true_values_scaled.view(-1, n_features).numpy()
+    n_samples, horizon, n_scaled_features = predictions_scaled.shape # n_scaled_features is len(TARGET_COLS)
+    
+    # Helper function for inverse transform
+    def _inverse_transform_target_cols(scaled_data, scaler_obj, config):
+        # scaled_data shape: (num_samples * horizon, len(TARGET_COLS))
+        # scaler_obj was fit on N_FEATURES
+        dummy_data_for_inverse = np.zeros((scaled_data.shape[0], config.N_FEATURES))
+        dummy_data_for_inverse[:, :len(config.TARGET_COLS)] = scaled_data
+        original_all_features = scaler_obj.inverse_transform(dummy_data_for_inverse)
+        original_target_cols = original_all_features[:, :len(config.TARGET_COLS)]
+        return original_target_cols
 
     try:
-        predictions_original = scaler.inverse_transform(pred_reshaped)
-        true_values_original = scaler.inverse_transform(true_reshaped)
+        # Reshape predictions_scaled to (num_samples * horizon, len(TARGET_COLS))
+        predictions_reshaped_scaled = predictions_scaled.view(-1, n_scaled_features).cpu().numpy()
+        predictions_original = _inverse_transform_target_cols(predictions_reshaped_scaled, scaler, config_obj)
+
+        # Reshape true_values_scaled to (num_samples * horizon, len(TARGET_COLS))
+        true_values_reshaped_scaled = true_values_scaled.view(-1, n_scaled_features).cpu().numpy()
+        true_values_original = _inverse_transform_target_cols(true_values_reshaped_scaled, scaler, config_obj)
+
     except Exception as e:
         logger.error(f"Error during inverse transform: {e}")
         logger.warning("Using scaled values for metric calculation.")
-        predictions_original = pred_reshaped
-        true_values_original = true_reshaped
+        # Fallback to scaled values if inverse transform fails
+        predictions_original = predictions_scaled.view(-1, n_scaled_features).cpu().numpy()
+        true_values_original = true_values_scaled.view(-1, n_scaled_features).cpu().numpy()
 
+    # 重塑回 [batch, horizon, len(TARGET_COLS)]
+    n_features_to_reshape = len(config_obj.TARGET_COLS)
+    predictions_original = predictions_original.reshape(n_samples, horizon, n_features_to_reshape)
+    true_values_original = true_values_original.reshape(n_samples, horizon, n_features_to_reshape)
 
-    # 重塑回 [batch, horizon, features] 供绘图和原始指标计算
-    predictions_original = predictions_original.reshape(n_samples, horizon, n_features)
-    true_values_original = true_values_original.reshape(n_samples, horizon, n_features)
+    # At this point, true_values_original and predictions_original already contain only TARGET_COLS
+    # So, the explicit slicing below is redundant but harmless.
+    # true_values_original = true_values_original[:, :, :len(config_obj.TARGET_COLS)]
+    # predictions_original = predictions_original[:, :, :len(config_obj.TARGET_COLS)]
 
-    # --- 计算指标 ---
     # --- 计算指标 ---
     metrics = calculate_metrics(true_values_original, predictions_original, config_obj.METRICS)
     logger.info(f"Evaluation Metrics for {model_name} (Original Scale):")
@@ -267,7 +290,7 @@ def evaluate_robustness(model, dataloader, device, scaler, noise_levels, config_
 
     # 获取原始的、干净的测试集预测和真实值 (用于比较)
     # predict 函数现在返回 (true_values, predictions)
-    original_trues_scaled, original_preds_scaled = predict(model, dataloader, device)
+    original_trues_scaled, original_preds_scaled = predict(model, dataloader, device, config_obj) # 传递 config_obj
 
     # ... (inside evaluate_robustness function) ...
 

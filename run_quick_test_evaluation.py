@@ -22,18 +22,18 @@ DATASETS = {
 
 PREDICTION_HORIZONS = [24]
 LOOKBACK_WINDOW = 192
-EPOCHS = 5 # 减少epochs以加快测试
+EPOCHS = 3 # 减少epochs以加快测试
 STABILITY_RUNS = 1 # 减少运行次数
 
 # 模型组合: (Teacher, Student)
 MODELS = [('DLinear', 'PatchTST')]
 
 # 噪音注入评估配置 (减少噪音水平)
-NOISE_LEVELS = [0, 0.05]
+NOISE_LEVELS = [ 0.05]
 NOISE_TYPE = 'gaussian'
 
 # 去噪平滑评估配置 (减少平滑系数)
-SMOOTHING_FACTORS = [0, 0.1]
+SMOOTHING_FACTORS = [0.1]
 SMOOTHING_METHOD = 'moving_average'
 
 # --- 主实验函数 (与 run_evaluation_experiments.py 相同，但使用快速测试配置) ---
@@ -83,6 +83,14 @@ def run_experiment(
         config.SMOOTHING_METHOD = smoothing_method
         config.SIMILARITY_METRIC = 'cosine_similarity' # 固定为余弦相似度
 
+        # 设置 EXOGENOUS_COLS
+        if dataset_name == 'exchange_rate': # 示例：只为 exchange_rate 添加协变量
+            config.EXOGENOUS_COLS = ['0', '1', '2', '3', '4', '5', '6']
+            logger.info(f"Setting EXOGENOUS_COLS for {dataset_name}: {config.EXOGENOUS_COLS}")
+        else:
+            config.EXOGENOUS_COLS = [] # 其他数据集不使用
+            logger.info(f"Setting EXOGENOUS_COLS for {dataset_name}: {config.EXOGENOUS_COLS}")
+
         # 更新模型配置，确保 LOOKBACK_WINDOW 和 PREDICTION_HORIZON 的变化生效
         config.update_model_configs()
 
@@ -101,15 +109,40 @@ def run_experiment(
             config.SMOOTHING_FACTOR = 0
             config.SMOOTHING_METHOD = None
 
-        train_loader, val_loader, test_loader, scaler = load_and_preprocess_data(
-            dataset_path, config, logger
+        # 从 dataset_path 或 dataset_name 中提取文件名
+        dataset_filename = os.path.basename(dataset_path)
+        # 从 DATASET_TIME_FREQ_MAP 中查找时间频率
+        time_freq_for_dataset = config.DATASET_TIME_FREQ_MAP.get(dataset_filename, 'h') # 默认为 'h'
+        config.TIME_FREQ = time_freq_for_dataset # 更新 config 中的 TIME_FREQ (虽然 data_handler 现在用传入的)
+        logger.info(f"Using time frequency '{time_freq_for_dataset}' for dataset '{dataset_filename}'")
+
+        train_loader, val_loader, test_loader, scaler, n_features = load_and_preprocess_data(
+            dataset_path, config, logger, time_freq=time_freq_for_dataset
         )
+        config.N_FEATURES = n_features
+        config.update_model_configs() # 确保在设置 n_features 后调用此函数
+
+        # --- 设备设置 ---
+        actual_device_str = config.DEVICE
+        if "cuda" in actual_device_str.lower() and not torch.cuda.is_available():
+            logger.warning(f"配置请求 CUDA ({actual_device_str}) 但 CUDA 不可用。将使用 CPU。")
+            actual_device_str = "cpu"
+        elif "cuda" in actual_device_str.lower() and torch.cuda.is_available():
+            logger.info(f"CUDA 可用，将尝试使用设备: {actual_device_str}")
+        else: # CPU or other
+            actual_device_str = "cpu"
+            logger.info(f"将使用 CPU。")
+
+        device = torch.device(actual_device_str)
+        config.DEVICE = str(device) # 更新配置中的实际使用设备
+        logger.info(f"实验最终将在设备上运行: {device}")
+        # --- 设备设置结束 ---
 
         # 获取模型
         # 检查 src/models.py 中的 get_model 函数是否需要 data_info
         # 如果需要，可能需要调整 data_handler.py 返回 data_info，或者在 config 中传递必要信息
-        teacher_model = get_model(teacher_model_name, config).to(config.DEVICE)
-        student_model = get_model(student_model_name, config).to(config.DEVICE)
+        teacher_model = get_model(teacher_model_name, config).to(device) # 移动到确定的 device
+        student_model = get_model(student_model_name, config).to(device) # 移动到确定的 device
 
         # 训练 Teacher 模型 (如果需要)
         logger.info(f"Training Teacher Model: {teacher_model_name}")

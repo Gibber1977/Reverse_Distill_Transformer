@@ -15,24 +15,39 @@ class Config:
         self.DATASET_PATH = os.path.join(self.DATA_DIR, 'national_illness.csv')
         self.DATE_COL = 'date'
         self.TARGET_COLS = ['OT']
-        self.TIME_FREQ = 'D'
+        self.EXOGENOUS_COLS = [] # 例如: ['0', '1', '2', '3', '4', '5', '6'] 或留空表示不使用额外协变量
+        self.TIME_FREQ = 'h' # 默认值，将在实验脚本中动态设置
         self.TIME_ENCODING_TYPE = 'linear' # 'linear' or 'cyclic'
 
+        self.DATASET_TIME_FREQ_MAP = {
+            'ETTh1.csv': 'h',
+            'ETTh2.csv': 'h',
+            'ETTm1.csv': 'min',
+            'ETTm2.csv': 'min',
+            'exchange_rate.csv': 'd',
+            'national_illness.csv': 'w',
+            'weather.csv': 'min',
+            # ETT-small 数据集路径可能需要调整以匹配实际文件名
+            'data/ETT-small/ETTh1.csv': 'h',
+            'data/ETT-small/ETTh2.csv': 'h',
+            'data/ETT-small/ETTm1.csv': 'min',
+            'data/ETT-small/ETTm2.csv': 'min',
+        }
+
         # --- 数据处理配置 ---
-        self.LOOKBACK_WINDOW = 96
+        self.LOOKBACK_WINDOW = 336
         self.PREDICTION_HORIZON = 192
-        self.VAL_SPLIT_RATIO = 0.43
-        self.TEST_SPLIT_RATIO = 0.3
+        self.VAL_SPLIT_RATIO = 0.2
+        self.TEST_SPLIT_RATIO = 0.2
         self.BATCH_SIZE = 32 # Increased for better GPU utilization
-        self.NUM_WORKERS = 4  # Increased for faster data loading
+        self.NUM_WORKERS = 0  # Increased for faster data loading
 
         # --- 模型配置 ---
         self.TEACHER_MODEL_NAME = 'DLinear'
         self.TEACHER_CONFIG = {
             'input_size': self.LOOKBACK_WINDOW,
             'h': self.PREDICTION_HORIZON,
-            'n_series': len(self.TARGET_COLS),
-            'hidden_size': 256,
+            'hidden_size': 64,
             'moving_avg_window': 25,
         }
 
@@ -40,14 +55,15 @@ class Config:
         self.STUDENT_CONFIG = {
             'input_size': self.LOOKBACK_WINDOW,
             'h': self.PREDICTION_HORIZON,
-            'n_series': len(self.TARGET_COLS),
             'patch_len': 16,
             'stride': 8,
             'n_layers': 3,
             'n_heads': 4,
-            'hidden_size': 128,
-            'ff_hidden_size': 256,
+            'hidden_size': 32,
+            'ff_hidden_size': 64,
             'revin': True,
+            'dropout': 0.3,       # Default dropout for PatchTST
+            'head_dropout': 0.0,  # Default head_dropout for PatchTST
         }
 
         # --- 训练配置 ---
@@ -83,6 +99,7 @@ class Config:
         self.SMOOTHING_WEIGHT_SMOOTHING = 0.0
 
         self.SIMILARITY_METRIC = 'cosine_similarity'
+        self.N_FEATURES = None
 
         self.STABILITY_RUNS = 1
 
@@ -99,39 +116,32 @@ class Config:
         self.NLINEAR_CONFIG = {
             'input_size': self.LOOKBACK_WINDOW,
             'h': self.PREDICTION_HORIZON,
-            'n_series': len(self.TARGET_COLS),
         }
         self.MLP_CONFIG = {
             'input_size': self.LOOKBACK_WINDOW,
             'h': self.PREDICTION_HORIZON,
-            'n_series': len(self.TARGET_COLS),
             'hidden_size': 512,
             'num_layers': 2,
             'activation': 'relu',
             'dropout': 0.1
         }
         self.RNN_CONFIG = {
-            'n_series': len(self.TARGET_COLS),
             'lookback': self.LOOKBACK_WINDOW,
             'h': self.PREDICTION_HORIZON,
             'hidden_size': 128,
             'num_layers': 2,
             'dropout': 0.1,
-            'output_size': len(self.TARGET_COLS)
         }
         self.LSTM_CONFIG = {
-            'n_series': len(self.TARGET_COLS),
             'lookback': self.LOOKBACK_WINDOW,
             'h': self.PREDICTION_HORIZON,
             'hidden_size': 128,
             'num_layers': 2,
             'dropout': 0.1,
-            'output_size': len(self.TARGET_COLS)
         }
         self.AUTOFORMER_CONFIG = {
             'input_size': self.LOOKBACK_WINDOW,
             'h': self.PREDICTION_HORIZON,
-            'n_series': len(self.TARGET_COLS),
             'hidden_size': 64,
             'n_head': 8,
             'encoder_layers': 2,
@@ -144,7 +154,6 @@ class Config:
         self.INFORMER_CONFIG = {
             'input_size': self.LOOKBACK_WINDOW,
             'h': self.PREDICTION_HORIZON,
-            'n_series': len(self.TARGET_COLS),
             'hidden_size': 64,
             'n_head': 8,
             'encoder_layers': 2,
@@ -156,7 +165,6 @@ class Config:
         self.FEDFORMER_CONFIG = {
             'input_size': self.LOOKBACK_WINDOW,
             'h': self.PREDICTION_HORIZON,
-            'n_series': len(self.TARGET_COLS),
             'hidden_size': 64,
             'n_head': 8,
             'encoder_layers': 2,
@@ -168,17 +176,6 @@ class Config:
         }
 
         # Dynamic updates (now within the class)
-        self.TEACHER_CONFIG['n_series'] = len(self.TARGET_COLS)
-        self.STUDENT_CONFIG['n_series'] = len(self.TARGET_COLS)
-        self.NLINEAR_CONFIG['n_series'] = len(self.TARGET_COLS)
-        self.MLP_CONFIG['n_series'] = len(self.TARGET_COLS)
-        self.RNN_CONFIG['n_series'] = len(self.TARGET_COLS)
-        self.RNN_CONFIG['output_size'] = len(self.TARGET_COLS)
-        self.LSTM_CONFIG['n_series'] = len(self.TARGET_COLS)
-        self.LSTM_CONFIG['output_size'] = len(self.TARGET_COLS)
-        self.AUTOFORMER_CONFIG['n_series'] = len(self.TARGET_COLS)
-        self.INFORMER_CONFIG['n_series'] = len(self.TARGET_COLS)
-        self.FEDFORMER_CONFIG['n_series'] = len(self.TARGET_COLS)
         self.MLP_CONFIG['input_size'] = self.LOOKBACK_WINDOW
         self.RNN_CONFIG['lookback'] = self.LOOKBACK_WINDOW
         self.LSTM_CONFIG['lookback'] = self.LOOKBACK_WINDOW
@@ -192,51 +189,40 @@ class Config:
         self.TEACHER_CONFIG.update({
             'input_size': self.LOOKBACK_WINDOW,
             'h': self.PREDICTION_HORIZON,
-            'n_series': len(self.TARGET_COLS),
         })
         # 更新学生模型配置
         self.STUDENT_CONFIG.update({
             'input_size': self.LOOKBACK_WINDOW,
             'h': self.PREDICTION_HORIZON,
-            'n_series': len(self.TARGET_COLS),
         })
         # 更新其他模型配置
         self.NLINEAR_CONFIG.update({
             'input_size': self.LOOKBACK_WINDOW,
             'h': self.PREDICTION_HORIZON,
-            'n_series': len(self.TARGET_COLS),
         })
         self.MLP_CONFIG.update({
             'input_size': self.LOOKBACK_WINDOW,
             'h': self.PREDICTION_HORIZON,
-            'n_series': len(self.TARGET_COLS),
         })
         self.RNN_CONFIG.update({
             'lookback': self.LOOKBACK_WINDOW,
             'h': self.PREDICTION_HORIZON,
-            'n_series': len(self.TARGET_COLS),
-            'output_size': len(self.TARGET_COLS),
         })
         self.LSTM_CONFIG.update({
             'lookback': self.LOOKBACK_WINDOW,
             'h': self.PREDICTION_HORIZON,
-            'n_series': len(self.TARGET_COLS),
-            'output_size': len(self.TARGET_COLS),
         })
         self.AUTOFORMER_CONFIG.update({
             'input_size': self.LOOKBACK_WINDOW,
             'h': self.PREDICTION_HORIZON,
-            'n_series': len(self.TARGET_COLS),
         })
         self.INFORMER_CONFIG.update({
             'input_size': self.LOOKBACK_WINDOW,
             'h': self.PREDICTION_HORIZON,
-            'n_series': len(self.TARGET_COLS),
         })
         self.FEDFORMER_CONFIG.update({
             'input_size': self.LOOKBACK_WINDOW,
             'h': self.PREDICTION_HORIZON,
-            'n_series': len(self.TARGET_COLS),
         })
         # 确保 EXPERIMENT_NAME 也更新
         self.EXPERIMENT_NAME = f"RDT_{self.STUDENT_MODEL_NAME}_vs_{self.TEACHER_MODEL_NAME}_h{self.PREDICTION_HORIZON}"

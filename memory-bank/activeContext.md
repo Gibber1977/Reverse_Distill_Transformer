@@ -87,3 +87,17 @@ This file tracks the project's current status, including recent changes, current
   3. 实验组合目录不再包含时间戳，格式为 `dataset_Teacher_Student_hX_noiseN_smoothM`
   4. 稳定性运行子目录格式标准化为 `runX_seed_YY`
   5. 日志文件保存在 `log/experiment_log_YYYYMMDD_HHMMSS.log`
+* [2025-05-30 18:27:25] - 修改 `src/data_handler.py` 中的 `time_features()` 和 `cyclic_time_features()` 函数，将所有对 `dates` 对象直接访问时间属性的地方改为使用 `.dt` 访问器。
+* [2025-05-30 18:41:40] - 修改 `src/data_handler.py` 以返回 `n_features`。
+* [2025-05-30 18:41:40] - 修改 `run_quick_test_evaluation.py` 和 `run_evaluation_experiments.py` 以捕获 `n_features` 并更新模型配置。
+* [2025-05-30 18:47:32] - 修改了 `src/config.py`，`src/data_handler.py`，`run_quick_test_evaluation.py`，`run_evaluation_experiments.py` 和 `src/models.py` 以统一处理特征数量 `n_features`。在 `Config` 类中移除了各个模型配置中的 `n_series`，添加了 `N_FEATURES` 属性。`load_and_preprocess_data` 现在返回 `df_target.shape[1]` 作为特征数。实验脚本更新为捕获此值并设置到 `config.N_FEATURES`。`get_model` 函数现在从 `config.N_FEATURES` 获取特征数，并相应更新了 `RNN` 和 `LSTM` 的 `output_size`。
+* [2025-05-30 19:00:00] - 修改 src/trainer.py 和 src/evaluator.py 以支持 DLinear 模型的输入格式 (insample_y, X_df)。
+* [2025-05-30 19:12:00] - 修改 `src/trainer.py` 和 `src/evaluator.py` 以解决损失计算和评估中的维度不匹配问题。具体而言，在损失计算和评估指标计算之前，对目标变量 `target_y` (或其在代码中的对应变量如 `batch_y`, `batch_y_true`) 进行了切片，以确保只使用 `config.TARGET_COLS` 定义的目标列。
+* [2025-05-30 19:23:00] - Completed modifications in `src/trainer.py` and `src/evaluator.py` to resolve dimension mismatch issues in `inverse_transform` and loss calculations. Ensured predictions and true values are correctly scaled and sliced for target columns.
+* [2025-05-30 21:32:30] - 完成了允许模型输入包含额外协变量的代码修改。这包括更新 `src/config.py` 以添加 `EXOGENOUS_COLS` 配置，修改 `src/data_handler.py` 以处理这些协变量的加载和合并，并更新了实验脚本 `run_evaluation_experiments.py` 和 `run_quick_test_evaluation.py` 以使用此新配置。
+* [2025-05-30 22:08:00] - 添加了在训练开始前记录模型运行设备（CUDA/CPU）的功能。
+* [2025-05-30 22:11:00] - 根据伪代码，在 `src/trainer.py` 的 `BaseTrainer.train()` 方法中添加了打印模型运行设备（CUDA/CPU）的逻辑，并在实验脚本 (`run_quick_test_evaluation.py`, `run_evaluation_experiments.py`) 中添加了设备检查和设置逻辑。
+* [2025-05-30 22:32:32] - Modified `src/models.py` and `src/config.py` to set default `dropout` to 0.3 and `head_dropout` to 0.0 for PatchTST models.
+* [2025-05-30 22:56:00] - **Recent Change**: 完成了对时间处理逻辑的优化，以支持分钟级时间特征。这包括对 `src/data_handler.py` 中 `time_features` 和 `cyclic_time_features` 函数的更新，在 `src/config.py` 中引入 `DATASET_TIME_FREQ_MAP` 和 `TIME_FREQ` 属性，以及修改实验脚本 (`run_quick_test_evaluation.py`, `run_evaluation_experiments.py`) 以查询并传递时间频率参数给 `load_and_preprocess_data` 函数。
+* [2025-05-30 22:56:00] - **Current Focus**: 验证分钟级时间特征处理的正确性，并确保所有相关实验按预期运行。
+* [2025-05-30 23:00:00] - 完成了对代码的修改，以支持分钟级时间特征处理。这包括更新 `src/data_handler.py` 中的时间特征函数，在 `src/config.py` 中引入 `DATASET_TIME_FREQ_MAP`，以及修改实验脚本 (`run_quick_test_evaluation.py`, `run_evaluation_experiments.py`) 以查询并传递时间频率参数给 `load_and_preprocess_data` 函数。

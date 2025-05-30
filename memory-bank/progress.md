@@ -84,3 +84,15 @@ This file tracks the project's progress using a task list format.
 * [2025-05-27 01:21:59] - 完成 `run_evaluation_experiments.py` 脚本修改任务，使其在保存模型和结果时，使用新的命名格式。
 * [2025-05-27 01:36:02] - 进一步优化 `run_evaluation_experiments.py`，在结果文件夹命名中包含随机种子和运行索引，以提高结果复现性。
 * [2025-05-27 02:07:30] - 完成对 `run_evaluation_experiments.py` 结果保存结构的优化，实现了统一规范的多层级目录结构：1) 时间戳根目录 2) 实验总览文件和CSV结果文件保存在根目录 3) 参数组合目录名不含时间戳 4) 稳定性运行子目录格式标准化为 `runX_seed_YY`。
+* [2025-05-30 18:27:35] - 完成 `src/data_handler.py` 中 `time_features()` 和 `cyclic_time_features()` 函数的修改，将直接访问时间属性改为使用 `.dt` 访问器。
+* [2025-05-30 18:41:29] - 完成 `src/data_handler.py` 中 `load_and_preprocess_data` 函数的修改，使其返回 `n_features`。
+* [2025-05-30 18:41:29] - 完成 `run_quick_test_evaluation.py` 中 `run_experiment` 函数的修改，以捕获 `n_features` 并更新模型配置。
+* [2025-05-30 18:41:29] - 完成 `run_evaluation_experiments.py` 中 `run_experiment` 函数的修改，以捕获 `n_features` 并更新模型配置。
+* [2025-05-30 18:47:47] - 完成了对 `src/config.py`、`src/data_handler.py`、`run_quick_test_evaluation.py`、`run_evaluation_experiments.py` 和 `src/models.py` 的修改，以统一处理特征数量 `n_features`。
+* [2025-05-30 19:00:00] - 完成 DLinear 模型维度不匹配错误的修复 (修改 trainer.py 和 evaluator.py)。
+* [2025-05-30 19:12:00] - 完成 `src/trainer.py` 和 `src/evaluator.py` 的修改，以解决损失计算和评估中的维度不匹配问题。
+* [2025-05-30 19:23:00] - Completed: Modified `src/trainer.py` and `src/evaluator.py` to fix dimension mismatch issues related to `inverse_transform` and ensure correct handling of target columns for loss and metric calculations.
+* [2025-05-30 21:33:00] - 完成代码修改，允许模型输入包含额外的协变量。更新了 `src/config.py`, `src/data_handler.py`, `run_evaluation_experiments.py`, 和 `run_quick_test_evaluation.py`。
+* [2025-05-30 22:11:00] - 完成了在模型训练开始前打印 CUDA 运行状态的功能。修改了 `src/trainer.py`，`run_quick_test_evaluation.py` 和 `run_evaluation_experiments.py`。
+* [2025-05-30 22:32:51] - Completed: Ensured default dropout (0.3) and head_dropout (0.0) for PatchTST models by modifying `src/models.py` and `src/config.py`.
+* [2025-05-30 22:56:00] - 完成时间处理逻辑优化，以支持“分钟”级别，并同步更新到相关实验脚本和配置文件。具体包括更新 `src/data_handler.py` 中的时间特征函数，在 `src/config.py` 中引入 `DATASET_TIME_FREQ_MAP`，以及修改实验脚本以传递 `time_freq` 参数。

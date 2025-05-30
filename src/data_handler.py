@@ -13,43 +13,50 @@ def time_features(dates, freq='h'):
     Generates time features from a pandas DatetimeIndex.
     Args:
         dates (pd.DatetimeIndex): Datetime index to extract features from.
-        freq (str): Frequency of the time series ('h' for hour, 'd' for day, 'w' for week, 'm' for month, 'q' for quarter, 'y' for year).
+        freq (str): Frequency of the time series ('h' for hour, 'd' for day, 'w' for week, 'm' for month, 'q' for quarter, 'y' for year, 'min' for minute).
     Returns:
         np.ndarray: Array of time features.
     """
     features = []
-    if freq == 'h':
-        features.append(dates.hour.values / 23.0 - 0.5) # Normalize to [-0.5, 0.5]
-        features.append(dates.dayofweek.values / 6.0 - 0.5) # Normalize to [-0.5, 0.5]
-        features.append(dates.dayofyear.values / 365.0 - 0.5) # Normalize to [-0.5, 0.5]
-        features.append(dates.month.values / 11.0 - 0.5) # Normalize to [-0.5, 0.5]
-        features.append(dates.isocalendar().week.values / 52.0 - 0.5) # Normalize to [-0.5, 0.5]
+    if freq == 'min': # 支持分钟级
+        features.append(dates.dt.minute.values / 59.0 - 0.5) # Normalize to [-0.5, 0.5]
+        features.append(dates.dt.hour.values / 23.0 - 0.5)
+        features.append(dates.dt.dayofweek.values / 6.0 - 0.5)
+        features.append(dates.dt.dayofyear.values / 365.0 - 0.5)
+        features.append(dates.dt.month.values / 11.0 - 0.5)
+        features.append(dates.dt.isocalendar().week.values / 52.0 - 0.5)
+    elif freq == 'h':
+        features.append(dates.dt.hour.values / 23.0 - 0.5)
+        features.append(dates.dt.dayofweek.values / 6.0 - 0.5)
+        features.append(dates.dt.dayofyear.values / 365.0 - 0.5)
+        features.append(dates.dt.month.values / 11.0 - 0.5)
+        features.append(dates.dt.isocalendar().week.values / 52.0 - 0.5)
     elif freq == 'd':
-        features.append(dates.dayofweek.values / 6.0 - 0.5)
-        features.append(dates.dayofyear.values / 365.0 - 0.5)
-        features.append(dates.month.values / 11.0 - 0.5)
-        features.append(dates.isocalendar().week.values / 52.0 - 0.5)
+        features.append(dates.dt.dayofweek.values / 6.0 - 0.5)
+        features.append(dates.dt.dayofyear.values / 365.0 - 0.5)
+        features.append(dates.dt.month.values / 11.0 - 0.5)
+        features.append(dates.dt.isocalendar().week.values / 52.0 - 0.5)
     elif freq == 'w':
-        features.append(dates.dayofweek.values / 6.0 - 0.5)
-        features.append(dates.dayofyear.values / 365.0 - 0.5)
-        features.append(dates.month.values / 11.0 - 0.5)
-        features.append(dates.isocalendar().week.values / 52.0 - 0.5)
+        features.append(dates.dt.dayofweek.values / 6.0 - 0.5)
+        features.append(dates.dt.dayofyear.values / 365.0 - 0.5)
+        features.append(dates.dt.month.values / 11.0 - 0.5)
+        features.append(dates.dt.isocalendar().week.values / 52.0 - 0.5)
     elif freq == 'm':
-        features.append(dates.month.values / 11.0 - 0.5)
-        features.append(dates.quarter.values / 3.0 - 0.5)
-        features.append(dates.year.values) # Year is not cyclic, keep as is or normalize differently
+        features.append(dates.dt.month.values / 11.0 - 0.5)
+        features.append(dates.dt.quarter.values / 3.0 - 0.5)
+        features.append(dates.dt.year.values)
     elif freq == 'q':
-        features.append(dates.quarter.values / 3.0 - 0.5)
-        features.append(dates.month.values / 11.0 - 0.5)
-        features.append(dates.year.values)
+        features.append(dates.dt.quarter.values / 3.0 - 0.5)
+        features.append(dates.dt.month.values / 11.0 - 0.5)
+        features.append(dates.dt.year.values)
     elif freq == 'y':
-        features.append(dates.year.values)
-    else: # Default to hour, dayofweek, dayofyear, month, weekofyear
-        features.append(dates.hour.values / 23.0 - 0.5)
-        features.append(dates.dayofweek.values / 6.0 - 0.5)
-        features.append(dates.dayofyear.values / 365.0 - 0.5)
-        features.append(dates.month.values / 11.0 - 0.5)
-        features.append(dates.isocalendar().week.values / 52.0 - 0.5)
+        features.append(dates.dt.year.values)
+    else: # Default to hour, dayofweek, dayofyear, month, weekofyear (same as 'h')
+        features.append(dates.dt.hour.values / 23.0 - 0.5)
+        features.append(dates.dt.dayofweek.values / 6.0 - 0.5)
+        features.append(dates.dt.dayofyear.values / 365.0 - 0.5)
+        features.append(dates.dt.month.values / 11.0 - 0.5)
+        features.append(dates.dt.isocalendar().week.values / 52.0 - 0.5)
 
     return np.array(features).transpose(1, 0)
 
@@ -58,79 +65,98 @@ def cyclic_time_features(dates, freq='h'):
     Generates cyclic time features (sin/cos) from a pandas DatetimeIndex.
     Args:
         dates (pd.DatetimeIndex): Datetime index to extract features from.
-        freq (str): Frequency of the time series ('h' for hour, 'd' for day, etc.).
+        freq (str): Frequency of the time series ('h' for hour, 'd' for day, etc., 'min' for minute).
     Returns:
         np.ndarray: Array of cyclic time features.
     """
     features = []
-    if freq == 'h':
+    if freq == 'min': # 支持分钟级
+        # Minute (0-59)
+        features.append(np.sin(2 * math.pi * dates.dt.minute.values / 60.0))
+        features.append(np.cos(2 * math.pi * dates.dt.minute.values / 60.0))
         # Hour (0-23)
-        features.append(np.sin(2 * math.pi * dates.hour.values / 24.0))
-        features.append(np.cos(2 * math.pi * dates.hour.values / 24.0))
+        features.append(np.sin(2 * math.pi * dates.dt.hour.values / 24.0))
+        features.append(np.cos(2 * math.pi * dates.dt.hour.values / 24.0))
         # Day of week (0-6)
-        features.append(np.sin(2 * math.pi * dates.dayofweek.values / 7.0))
-        features.append(np.cos(2 * math.pi * dates.dayofweek.values / 7.0))
+        features.append(np.sin(2 * math.pi * dates.dt.dayofweek.values / 7.0))
+        features.append(np.cos(2 * math.pi * dates.dt.dayofweek.values / 7.0))
         # Day of year (1-366)
-        features.append(np.sin(2 * math.pi * dates.dayofyear.values / 366.0))
-        features.append(np.cos(2 * math.pi * dates.dayofyear.values / 366.0))
+        features.append(np.sin(2 * math.pi * dates.dt.dayofyear.values / 366.0))
+        features.append(np.cos(2 * math.pi * dates.dt.dayofyear.values / 366.0))
         # Month (1-12)
-        features.append(np.sin(2 * math.pi * dates.month.values / 12.0))
-        features.append(np.cos(2 * math.pi * dates.month.values / 12.0))
+        features.append(np.sin(2 * math.pi * dates.dt.month.values / 12.0))
+        features.append(np.cos(2 * math.pi * dates.dt.month.values / 12.0))
         # Week of year (1-53)
-        features.append(np.sin(2 * math.pi * dates.isocalendar().week.values / 53.0))
-        features.append(np.cos(2 * math.pi * dates.isocalendar().week.values / 53.0))
+        features.append(np.sin(2 * math.pi * dates.dt.isocalendar().week.values / 53.0))
+        features.append(np.cos(2 * math.pi * dates.dt.isocalendar().week.values / 53.0))
+    elif freq == 'h':
+        # Hour (0-23)
+        features.append(np.sin(2 * math.pi * dates.dt.hour.values / 24.0))
+        features.append(np.cos(2 * math.pi * dates.dt.hour.values / 24.0))
+        # Day of week (0-6)
+        features.append(np.sin(2 * math.pi * dates.dt.dayofweek.values / 7.0))
+        features.append(np.cos(2 * math.pi * dates.dt.dayofweek.values / 7.0))
+        # Day of year (1-366)
+        features.append(np.sin(2 * math.pi * dates.dt.dayofyear.values / 366.0))
+        features.append(np.cos(2 * math.pi * dates.dt.dayofyear.values / 366.0))
+        # Month (1-12)
+        features.append(np.sin(2 * math.pi * dates.dt.month.values / 12.0))
+        features.append(np.cos(2 * math.pi * dates.dt.month.values / 12.0))
+        # Week of year (1-53)
+        features.append(np.sin(2 * math.pi * dates.dt.isocalendar().week.values / 53.0))
+        features.append(np.cos(2 * math.pi * dates.dt.isocalendar().week.values / 53.0))
     elif freq == 'd':
         # Day of week (0-6)
-        features.append(np.sin(2 * math.pi * dates.dayofweek.values / 7.0))
-        features.append(np.cos(2 * math.pi * dates.dayofweek.values / 7.0))
+        features.append(np.sin(2 * math.pi * dates.dt.dayofweek.values / 7.0))
+        features.append(np.cos(2 * math.pi * dates.dt.dayofweek.values / 7.0))
         # Day of year (1-366)
-        features.append(np.sin(2 * math.pi * dates.dayofyear.values / 366.0))
-        features.append(np.cos(2 * math.pi * dates.dayofyear.values / 366.0))
+        features.append(np.sin(2 * math.pi * dates.dt.dayofyear.values / 366.0))
+        features.append(np.cos(2 * math.pi * dates.dt.dayofyear.values / 366.0))
         # Month (1-12)
-        features.append(np.sin(2 * math.pi * dates.month.values / 12.0))
-        features.append(np.cos(2 * math.pi * dates.month.values / 12.0))
+        features.append(np.sin(2 * math.pi * dates.dt.month.values / 12.0))
+        features.append(np.cos(2 * math.pi * dates.dt.month.values / 12.0))
         # Week of year (1-53)
-        features.append(np.sin(2 * math.pi * dates.isocalendar().week.values / 53.0))
-        features.append(np.cos(2 * math.pi * dates.isocalendar().week.values / 53.0))
+        features.append(np.sin(2 * math.pi * dates.dt.isocalendar().week.values / 53.0))
+        features.append(np.cos(2 * math.pi * dates.dt.isocalendar().week.values / 53.0))
     elif freq == 'w':
         # Day of week (0-6) - if weekly data, this might not be relevant or always 0
-        features.append(np.sin(2 * math.pi * dates.dayofweek.values / 7.0))
-        features.append(np.cos(2 * math.pi * dates.dayofweek.values / 7.0))
+        features.append(np.sin(2 * math.pi * dates.dt.dayofweek.values / 7.0))
+        features.append(np.cos(2 * math.pi * dates.dt.dayofweek.values / 7.0))
         # Month (1-12)
-        features.append(np.sin(2 * math.pi * dates.month.values / 12.0))
-        features.append(np.cos(2 * math.pi * dates.month.values / 12.0))
+        features.append(np.sin(2 * math.pi * dates.dt.month.values / 12.0))
+        features.append(np.cos(2 * math.pi * dates.dt.month.values / 12.0))
         # Week of year (1-53)
-        features.append(np.sin(2 * math.pi * dates.isocalendar().week.values / 53.0))
-        features.append(np.cos(2 * math.pi * dates.isocalendar().week.values / 53.0))
+        features.append(np.sin(2 * math.pi * dates.dt.isocalendar().week.values / 53.0))
+        features.append(np.cos(2 * math.pi * dates.dt.isocalendar().week.values / 53.0))
     elif freq == 'm':
         # Month (1-12)
-        features.append(np.sin(2 * math.pi * dates.month.values / 12.0))
-        features.append(np.cos(2 * math.pi * dates.month.values / 12.0))
+        features.append(np.sin(2 * math.pi * dates.dt.month.values / 12.0))
+        features.append(np.cos(2 * math.pi * dates.dt.month.values / 12.0))
         # Quarter (1-4)
-        features.append(np.sin(2 * math.pi * dates.quarter.values / 4.0))
-        features.append(np.cos(2 * math.pi * dates.quarter.values / 4.0))
+        features.append(np.sin(2 * math.pi * dates.dt.quarter.values / 4.0))
+        features.append(np.cos(2 * math.pi * dates.dt.quarter.values / 4.0))
     elif freq == 'q':
         # Quarter (1-4)
-        features.append(np.sin(2 * math.pi * dates.quarter.values / 4.0))
-        features.append(np.cos(2 * math.pi * dates.quarter.values / 4.0))
+        features.append(np.sin(2 * math.pi * dates.dt.quarter.values / 4.0))
+        features.append(np.cos(2 * math.pi * dates.dt.quarter.values / 4.0))
         # Month (1-12)
-        features.append(np.sin(2 * math.pi * dates.month.values / 12.0))
-        features.append(np.cos(2 * math.pi * dates.month.values / 12.0))
+        features.append(np.sin(2 * math.pi * dates.month.values / 12.0)) # Original code had dates.month, should be dates.dt.month
+        features.append(np.cos(2 * math.pi * dates.month.values / 12.0)) # Original code had dates.month, should be dates.dt.month
     elif freq == 'y':
         # Year is not typically cyclic in this sense, but if needed, could use a very long cycle or specific events
         # For now, no cyclic features for year itself.
         pass
-    else: # Default to hour, dayofweek, dayofyear, month, weekofyear
-        features.append(np.sin(2 * math.pi * dates.hour.values / 24.0))
-        features.append(np.cos(2 * math.pi * dates.hour.values / 24.0))
-        features.append(np.sin(2 * math.pi * dates.dayofweek.values / 7.0))
-        features.append(np.cos(2 * math.pi * dates.dayofweek.values / 7.0))
-        features.append(np.sin(2 * math.pi * dates.dayofyear.values / 366.0))
-        features.append(np.cos(2 * math.pi * dates.dayofyear.values / 366.0))
-        features.append(np.sin(2 * math.pi * dates.month.values / 12.0))
-        features.append(np.cos(2 * math.pi * dates.month.values / 12.0))
-        features.append(np.sin(2 * math.pi * dates.isocalendar().week.values / 53.0))
-        features.append(np.cos(2 * math.pi * dates.isocalendar().week.values / 53.0))
+    else: # Default to hour, dayofweek, dayofyear, month, weekofyear (same as 'h')
+        features.append(np.sin(2 * math.pi * dates.dt.hour.values / 24.0))
+        features.append(np.cos(2 * math.pi * dates.dt.hour.values / 24.0))
+        features.append(np.sin(2 * math.pi * dates.dt.dayofweek.values / 7.0))
+        features.append(np.cos(2 * math.pi * dates.dt.dayofweek.values / 7.0))
+        features.append(np.sin(2 * math.pi * dates.dt.dayofyear.values / 366.0))
+        features.append(np.cos(2 * math.pi * dates.dt.dayofyear.values / 366.0))
+        features.append(np.sin(2 * math.pi * dates.dt.month.values / 12.0))
+        features.append(np.cos(2 * math.pi * dates.dt.month.values / 12.0))
+        features.append(np.sin(2 * math.pi * dates.dt.isocalendar().week.values / 53.0))
+        features.append(np.cos(2 * math.pi * dates.dt.isocalendar().week.values / 53.0))
 
     return np.array(features).transpose(1, 0)
 
@@ -290,7 +316,7 @@ def collate_fn_skip_none(batch):
 
     return collated_xs, collated_ys, collated_hist_exogs, collated_futr_exogs
 
-def load_and_preprocess_data(dataset_path, cfg, logger):
+def load_and_preprocess_data(dataset_path, cfg, logger, time_freq):
     """加载、预处理、划分和创建 DataLoaders"""
     logger.info("--- Starting Data Loading and Preprocessing ---")
 
@@ -337,15 +363,29 @@ def load_and_preprocess_data(dataset_path, cfg, logger):
         logger.error(f"Error: One or more target columns {cfg.TARGET_COLS} not found.")
         raise
 
+    df_exog = pd.DataFrame(index=df.index) # 初始化一个空的 DataFrame 来存放外生变量
+    if hasattr(cfg, 'EXOGENOUS_COLS') and cfg.EXOGENOUS_COLS: # 检查属性是否存在且不为空
+        try:
+            # 确保只选择数据帧中实际存在的列
+            existing_exog_cols = [col for col in cfg.EXOGENOUS_COLS if col in df.columns]
+            if not existing_exog_cols:
+                logger.warning(f"None of the specified EXOGENOUS_COLS {cfg.EXOGENOUS_COLS} found in the dataset. No exogenous features will be added.")
+            else:
+                df_exog = df[existing_exog_cols]
+                logger.info(f"Selected exogenous columns: {existing_exog_cols}")
+        except KeyError as e:
+            logger.error(f"Error selecting exogenous columns: {e}. Specified EXOGENOUS_COLS: {cfg.EXOGENOUS_COLS}")
+            # 根据需要决定是否抛出异常或继续（不带外生变量）
+
     # --- 时间特征编码 ---
     dates = df[cfg.DATE_COL]
     time_features_data = None
     if cfg.TIME_ENCODING_TYPE == 'linear':
-        logger.info("Applying linear time encoding.")
-        time_features_data = time_features(dates, freq=cfg.TIME_FREQ)
+        logger.info(f"Applying linear time encoding with frequency: {time_freq}")
+        time_features_data = time_features(dates, freq=time_freq)
     elif cfg.TIME_ENCODING_TYPE == 'cyclic':
-        logger.info("Applying cyclic time encoding.")
-        time_features_data = cyclic_time_features(dates, freq=cfg.TIME_FREQ)
+        logger.info(f"Applying cyclic time encoding with frequency: {time_freq}")
+        time_features_data = cyclic_time_features(dates, freq=time_freq)
     else:
         logger.warning(f"Unknown TIME_ENCODING_TYPE: {cfg.TIME_ENCODING_TYPE}. No time features will be added.")
 
@@ -354,24 +394,31 @@ def load_and_preprocess_data(dataset_path, cfg, logger):
         time_feature_cols = [f'time_feature_{i}' for i in range(time_features_data.shape[1])]
         df_time_features = pd.DataFrame(time_features_data, index=df.index, columns=time_feature_cols)
         
-        # 将时间特征与目标数据合并
-        df_target = pd.concat([df_target, df_time_features], axis=1)
-        logger.info(f"Time features added. New data shape: {df_target.shape}")
-        logger.info(f"New data columns: {df_target.columns.tolist()}")
+        # 合并目标列、已选择的额外协变量列（如果存在）和时间特征列（如果存在）
+        # 确保目标列始终在最前面
+        dfs_to_concat = [df_target]
+        if not df_exog.empty:
+            dfs_to_concat.append(df_exog)
+        if time_features_data is not None: # 确保 df_time_features 已被创建
+            dfs_to_concat.append(df_time_features)
+        
+        df_processed = pd.concat(dfs_to_concat, axis=1)
+        logger.info(f"Data processed. New data shape: {df_processed.shape}")
+        logger.info(f"New data columns: {df_processed.columns.tolist()}")
 
 
     # 处理缺失值 (简单填充，可以用更复杂的方法)
-    if df_target.isnull().values.any():
-        logger.warning(f"Missing values found in target columns. Filling with forward fill.")
-        df_target = df_target.ffill().bfill() # 先前向填充，再后向填充处理开头的 NaN
-    if df_target.isnull().values.any():
-        logger.error(f"Still missing values after fill. Check data.")
+    if df_processed.isnull().values.any():
+        logger.warning(f"Missing values found in processed data. Filling with forward fill.")
+        df_processed = df_processed.ffill().bfill() # 先前向填充，再后向填充处理开头的 NaN
+    if df_processed.isnull().values.any():
+        logger.error(f"Still missing values after fill in processed data. Check data.")
         # 可以选择填充为 0 或均值，但可能引入偏差
-        # df_target = df_target.fillna(0)
-        raise ValueError("Data contains NaNs after attempting fill.")
+        # df_processed = df_processed.fillna(0)
+        raise ValueError("Processed data contains NaNs after attempting fill.")
 
     # --- 3. 划分数据 ---
-    n_total = len(df_target)
+    n_total = len(df_processed)
     n_test = int(n_total * cfg.TEST_SPLIT_RATIO)
     n_train_val = n_total - n_test
     n_val = int(n_train_val * cfg.VAL_SPLIT_RATIO)
@@ -384,9 +431,9 @@ def load_and_preprocess_data(dataset_path, cfg, logger):
         logger.warning(f"n_train={n_train}, n_val={n_val}, n_test={n_test}")
         # 可以考虑减少划分比例或调整窗口大小
 
-    train_data_raw = df_target.iloc[:n_train].values.astype(np.float32)
-    val_data_raw = df_target.iloc[n_train : n_train + n_val].values.astype(np.float32)
-    test_data_raw = df_target.iloc[n_train + n_val :].values.astype(np.float32)
+    train_data_raw = df_processed.iloc[:n_train].values.astype(np.float32)
+    val_data_raw = df_processed.iloc[n_train : n_train + n_val].values.astype(np.float32)
+    test_data_raw = df_processed.iloc[n_train + n_val :].values.astype(np.float32)
 
     logger.info(f"Raw Data split: Train={train_data_raw.shape[0]}, Validation={val_data_raw.shape[0]}, Test={test_data_raw.shape[0]}")
 
@@ -436,11 +483,11 @@ def load_and_preprocess_data(dataset_path, cfg, logger):
 
     # 注意：时间序列通常不在训练时 shuffle，以利用样本间的时序关系
     # 使用自定义的 collate_fn 来处理 Dataset 返回的 None 值
-    train_loader = DataLoader(train_dataset, batch_size=cfg.BATCH_SIZE, shuffle=True, num_workers=cfg.NUM_WORKERS, drop_last=False, collate_fn=collate_fn_skip_none)
-    val_loader = DataLoader(val_dataset, batch_size=cfg.BATCH_SIZE, shuffle=False, num_workers=cfg.NUM_WORKERS, drop_last=False, collate_fn=collate_fn_skip_none)
-    test_loader = DataLoader(test_dataset, batch_size=cfg.BATCH_SIZE, shuffle=False, num_workers=cfg.NUM_WORKERS, drop_last=False, collate_fn=collate_fn_skip_none)
+    train_loader = DataLoader(train_dataset, batch_size=cfg.BATCH_SIZE, shuffle=True, num_workers=cfg.NUM_WORKERS, drop_last=False, collate_fn=collate_fn_skip_none,pin_memory=True)
+    val_loader = DataLoader(val_dataset, batch_size=cfg.BATCH_SIZE, shuffle=False, num_workers=cfg.NUM_WORKERS, drop_last=False, collate_fn=collate_fn_skip_none,pin_memory=True)
+    test_loader = DataLoader(test_dataset, batch_size=cfg.BATCH_SIZE, shuffle=False, num_workers=cfg.NUM_WORKERS, drop_last=False, collate_fn=collate_fn_skip_none,pin_memory=True)
 
     logger.info(f"DataLoaders created: Train batches={len(train_loader)}, Val batches={len(val_loader)}, Test batches={len(test_loader)}")
     logger.info("--- Data Loading and Preprocessing Finished ---")
 
-    return train_loader, val_loader, test_loader, scaler # 返回 scaler 用于逆变换
+    return train_loader, val_loader, test_loader, scaler, df_processed.shape[1]
