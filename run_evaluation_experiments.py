@@ -15,7 +15,7 @@ from src.trainer import StandardTrainer, RDT_Trainer, get_optimizer, get_loss_fu
 from src.schedulers import get_alpha_scheduler
 from src.evaluator import evaluate_model, calculate_similarity_metrics
 from src.utils import set_seed, setup_logging, save_results_to_csv, save_plot, save_experiment_metadata
-
+import src.utils as utils
 # --- 实验配置 ---
 DATASETS = {
     'exchange_rate': './data/exchange_rate.csv',
@@ -613,7 +613,7 @@ def plot_noise_evaluation(results_df, similarity_df, output_dir, logger):
                 plt.ylabel(metric)
                 plt.legend()
                 plt.grid(True)
-                save_plot(plt, os.path.join(output_dir, f'{dataset}_{horizon}_noise_{metric}.png'), logger)
+                utils.save_plot(plt, os.path.join(output_dir, f'{dataset}_{horizon}_noise_{metric}.png'), logger)
                 plt.close()
 
             # Plot similarity vs. noise level
@@ -629,7 +629,7 @@ def plot_noise_evaluation(results_df, similarity_df, output_dir, logger):
                 plt.ylabel('Cosine Similarity')
                 plt.legend()
                 plt.grid(True)
-                save_plot(plt, os.path.join(output_dir, f'{dataset}_{horizon}_noise_similarity.png'), logger)
+                utils.save_plot(plt, os.path.join(output_dir, f'{dataset}_{horizon}_noise_similarity.png'), logger)
                 plt.close()
 
 def plot_smoothing_evaluation(results_df, similarity_df, output_dir, logger):
@@ -664,7 +664,7 @@ def plot_smoothing_evaluation(results_df, similarity_df, output_dir, logger):
                 plt.ylabel(metric)
                 plt.legend()
                 plt.grid(True)
-                save_plot(plt, os.path.join(output_dir, f'{dataset}_{horizon}_smoothing_{metric}.png'), logger)
+                utils.save_plot(plt, os.path.join(output_dir, f'{dataset}_{horizon}_smoothing_{metric}.png'), logger)
                 plt.close()
 
             # Plot similarity vs. smoothing factor
@@ -680,7 +680,7 @@ def plot_smoothing_evaluation(results_df, similarity_df, output_dir, logger):
                 plt.ylabel('Cosine Similarity')
                 plt.legend()
                 plt.grid(True)
-                save_plot(plt, os.path.join(output_dir, f'{dataset}_{horizon}_smoothing_similarity.png'), logger)
+                utils.save_plot(plt, os.path.join(output_dir, f'{dataset}_{horizon}_smoothing_similarity.png'), logger)
                 plt.close()
 
 if __name__ == "__main__":

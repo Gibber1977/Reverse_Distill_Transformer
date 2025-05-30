@@ -444,3 +444,14 @@ To maintain consistent model behavior and training stability, specific default v
     - 在 `run_experiment` 函数中，每个模型（Teacher, TaskOnly, Follower, RDT）训练完成后，通过 `early_stopping` 机制加载最佳模型。
     - 在加载最佳模型之后，**只对加载的最佳模型调用一次 `evaluate_model`**，以生成最终的评估指标和图表。
     - 在每个模型评估之后，添加了对 `utils.plot_training_metrics` 和 `utils.plot_weights_biases_distribution` 的调用，确保训练过程中的图表在训练完成后统一生成。
+---
+### Decision (Debug)
+[2025-05-31 02:13:50] - 修复 `run_evaluation_experiments.py` 中 `save_plot` 未定义错误
+
+**Rationale:**
+`run_evaluation_experiments.py` 文件中，`plot_noise_evaluation` 和 `plot_smoothing_evaluation` 函数直接调用了 `save_plot`，但 `save_plot` 是从 `src.utils` 模块导入的，并且 `src.utils` 模块被别名为 `utils`。因此，`save_plot` 应该通过 `utils.save_plot` 来调用。
+
+**Details:**
+- **[`run_evaluation_experiments.py`](run_evaluation_experiments.py)**:
+    - 将 `plot_noise_evaluation` 函数中所有对 `save_plot` 的调用修改为 `utils.save_plot`。
+    - 将 `plot_smoothing_evaluation` 函数中所有对 `save_plot` 的调用修改为 `utils.save_plot`。
