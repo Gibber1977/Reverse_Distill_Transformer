@@ -96,3 +96,4 @@ This file tracks the project's progress using a task list format.
 * [2025-05-30 22:11:00] - 完成了在模型训练开始前打印 CUDA 运行状态的功能。修改了 `src/trainer.py`，`run_quick_test_evaluation.py` 和 `run_evaluation_experiments.py`。
 * [2025-05-30 22:32:51] - Completed: Ensured default dropout (0.3) and head_dropout (0.0) for PatchTST models by modifying `src/models.py` and `src/config.py`.
 * [2025-05-30 22:56:00] - 完成时间处理逻辑优化，以支持“分钟”级别，并同步更新到相关实验脚本和配置文件。具体包括更新 `src/data_handler.py` 中的时间特征函数，在 `src/config.py` 中引入 `DATASET_TIME_FREQ_MAP`，以及修改实验脚本以传递 `time_freq` 参数。
+* [2025-05-31 00:43:15] - 完成对 `src/evaluator.py` 的修改：移除 `evaluate_model` 函数中未使用的 `plots_dir` 参数，调整绘图代码块位置并更新其目录参数。

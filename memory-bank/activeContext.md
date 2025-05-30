@@ -101,3 +101,4 @@ This file tracks the project's current status, including recent changes, current
 * [2025-05-30 22:56:00] - **Recent Change**: 完成了对时间处理逻辑的优化，以支持分钟级时间特征。这包括对 `src/data_handler.py` 中 `time_features` 和 `cyclic_time_features` 函数的更新，在 `src/config.py` 中引入 `DATASET_TIME_FREQ_MAP` 和 `TIME_FREQ` 属性，以及修改实验脚本 (`run_quick_test_evaluation.py`, `run_evaluation_experiments.py`) 以查询并传递时间频率参数给 `load_and_preprocess_data` 函数。
 * [2025-05-30 22:56:00] - **Current Focus**: 验证分钟级时间特征处理的正确性，并确保所有相关实验按预期运行。
 * [2025-05-30 23:00:00] - 完成了对代码的修改，以支持分钟级时间特征处理。这包括更新 `src/data_handler.py` 中的时间特征函数，在 `src/config.py` 中引入 `DATASET_TIME_FREQ_MAP`，以及修改实验脚本 (`run_quick_test_evaluation.py`, `run_evaluation_experiments.py`) 以查询并传递时间频率参数给 `load_and_preprocess_data` 函数。
+* [2025-05-31 00:43:01] - 修改 `src/evaluator.py`：移除了 `evaluate_model` 函数中未使用的 `plots_dir` 参数，并将绘图代码块移至 `return` 语句之前，确保其使用 `actual_plots_dir`。

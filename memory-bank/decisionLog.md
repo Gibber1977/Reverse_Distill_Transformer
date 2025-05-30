@@ -373,3 +373,17 @@ To maintain consistent model behavior and training stability, specific default v
         - 使用文件名从 `config.DATASET_TIME_FREQ_MAP` 查找时间频率。
         - 将查找到的时间频率赋值给 `config.TIME_FREQ` (用于日志和可能的其他用途)。
         - 将查找到的时间频率作为 `time_freq` 参数传递给 `load_and_preprocess_data` 函数调用。
+---
+### Decision (Code)
+[2025-05-31 00:43:30] - 优化 `src/evaluator.py` 中的 `evaluate_model` 函数
+
+**Rationale:**
+1.  移除未使用的 `plots_dir` 参数，简化函数签名。
+2.  将绘图相关的代码块（残差分析、ACF/PACF图、误差分布图）移至 `return` 语句之前，确保在函数返回前生成所有必要的绘图。
+3.  统一绘图输出目录，确保所有绘图都保存到基于 `config_obj.RESULTS_DIR` 和 "plots" 子目录构建的 `actual_plots_dir` 中，增强结果管理的规范性。
+
+**Details:**
+- **[`src/evaluator.py`](src/evaluator.py:161-283)**:
+    - 从 `evaluate_model` 函数定义中移除了 `plots_dir` 参数。
+    - 将原先位于 `return` 语句之后的绘图代码块（约第268-283行）移动到了 `return` 语句（新的第282行）之前。
+    - 修改了这些移动的绘图代码块中的 `save_dir` 参数，将其从原来的 `plots_dir` 更改为 `actual_plots_dir`。

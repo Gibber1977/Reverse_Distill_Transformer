@@ -158,7 +158,7 @@ def predict(model, dataloader, device, config_obj): # 添加 config_obj 参数
     # 返回真实值和预测结果
     return true_values, predictions # 返回 torch tensors
 
-def evaluate_model(model, dataloader, device, scaler, config_obj, logger, model_name="Model", plots_dir=".", teacher_predictions_original=None, dataset_type="Test Set"):
+def evaluate_model(model, dataloader, device, scaler, config_obj, logger, model_name="Model", teacher_predictions_original=None, dataset_type="Test Set"):
     """
     在指定数据集上评估模型性能，并可选地计算学生-教师模型相似度。
     model: 要评估的模型 (学生模型)
@@ -168,7 +168,6 @@ def evaluate_model(model, dataloader, device, scaler, config_obj, logger, model_
     config_obj: 配置对象
     logger: 日志记录器
     model_name: 模型名称
-    plots_dir: 绘图保存目录
     teacher_predictions_original: 可选，教师模型在相同数据上的原始尺度预测结果 (numpy array)，用于计算相似度
     dataset_type: 字符串，表示正在评估的数据集类型 (例如 "Validation Set" 或 "Test Set")
     """
@@ -263,24 +262,24 @@ def evaluate_model(model, dataloader, device, scaler, config_obj, logger, model_
                            save_path=plot_save_path, series_idx=0,
                            target_cols_list=config_obj.TARGET_COLS)
 
-    return metrics, true_values_original, predictions_original
-
     # --- 绘制残差分析图 ---
     # 提取第一个特征的残差进行 ACF/PACF 分析
     residuals_flat = (true_values_original[:, :, 0] - predictions_original[:, :, 0]).flatten()
     utils.plot_residuals_analysis(true_values_original, predictions_original,
-                                  save_dir=plots_dir, model_name=model_name,
+                                  save_dir=actual_plots_dir, model_name=model_name,
                                   series_idx=0, target_cols_list=config_obj.TARGET_COLS)
-    utils.plot_acf_pacf(residuals_flat, save_dir=plots_dir, model_name=model_name,
+    utils.plot_acf_pacf(residuals_flat, save_dir=actual_plots_dir, model_name=model_name,
                         series_idx=0, target_cols_list=config_obj.TARGET_COLS)
     utils.plot_error_distribution(true_values_original, predictions_original,
-                                  save_dir=plots_dir, model_name=model_name,
+                                  save_dir=actual_plots_dir, model_name=model_name,
                                   series_idx=0, target_cols_list=config_obj.TARGET_COLS,
                                   plot_type='box') # 默认绘制箱线图
     utils.plot_error_distribution(true_values_original, predictions_original,
-                                  save_dir=plots_dir, model_name=model_name,
+                                  save_dir=actual_plots_dir, model_name=model_name,
                                   series_idx=0, target_cols_list=config_obj.TARGET_COLS,
                                   plot_type='violin') # 绘制小提琴图
+
+    return metrics, true_values_original, predictions_original
 
 
 def evaluate_robustness(model, dataloader, device, scaler, noise_levels, config_obj, logger, model_name="Model", metrics_dir="."):
