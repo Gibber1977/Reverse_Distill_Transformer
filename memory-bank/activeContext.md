@@ -16,16 +16,6 @@ This file tracks the project's current status, including recent changes, current
 * 2025-05-26 13:09:00 - 创建了Memory Bank基础结构
 * 2025-05-26 13:09:00 - 分析了主要模块(models.py, trainer.py, data_handler.py)的实现逻辑
 * 2025-05-26 14:35:24 - 更新了 `productContext.md` 以反映新功能需求。
-
-## Open Questions/Issues
-
-* 当前实现支持哪些Alpha调度策略？需要检查schedulers.py
-* 对于不同的时间序列数据集，可能需要哪些特定的预处理步骤？
-* 如何优化教师-学生模型组合以获得最佳性能？
-* 项目的测试覆盖度如何？是否需要添加更多单元测试或集成测试？
-* 如何在 `data_handler.py` 中实现噪音注入和数据平滑处理，同时保持模块化和可配置性？
-* 如何在 `evaluator.py` 中集成新的评估指标和比较逻辑？
-* 如何在 `trainer.py` 中传递验证集信息给 `alpha_scheduler`？
 * 2025-05-26 14:43:55 - 完成了 `src/evaluator.py` 中学生-教师相似度评估功能的实现。
 * 2025-05-26 14:44:29 - 完成了 `src/schedulers.py` 中 `AlphaScheduler` 基类及其子类 `update` 方法的文档更新。
 * 2025-05-26 14:44:29 - 完成了 `src/trainer.py` 中 `RDT_Trainer` 在验证阶段收集预测结果并传递给 Alpha 调度器的实现。
@@ -77,7 +67,6 @@ This file tracks the project's current status, including recent changes, current
 * 2025-05-26 17:40:00 - 完成了核心训练指标（训练损失、验证损失、学习率、梯度范数和评估指标）的可视化功能。
 * 2025-05-26 17:41:00 - 完成了模型权重和偏置分布的可视化功能。
 * 2025-05-26 17:43:00 - 完成了增强预测结果与真实值对比的可视化功能（包括残差分析和误差分布图）。
-* 2025-05-26 17:45:00 - 完成了详细的参数记录机制，包括实验元数据、模型架构参数、训练配置参数和数据处理参数的保存。
 * [2025-05-26 18:07:13] - 修复 `src/utils.py` 中 `plot_predictions` 函数的 `title` 和 `save_path` 未定义警告，通过修改函数签名并正确传递参数。
 * 2025-05-26 21:27:19 - 修改 `run_evaluation_experiments.py` 以实现噪音注入和去噪平滑的配置调整。
 * 2025-05-27 00:14:58 - 完成 `README.md` 文档更新任务。
@@ -105,3 +94,14 @@ This file tracks the project's current status, including recent changes, current
 * [2025-05-31 00:43:01] - 修改 `src/evaluator.py`：移除了 `evaluate_model` 函数中未使用的 `plots_dir` 参数，并将绘图代码块移至 `return` 语句之前，确保其使用 `actual_plots_dir`。
 * [2025-05-31 01:03:59] - 在 `src/evaluator.py` 中成功实现 `error_cos_similarity` 指标。添加了 `calculate_error_cosine_similarity` 函数，并修改了 `evaluate_model` 以计算并包含此新指标。确认实验脚本 (`run_evaluation_experiments.py`, `run_quick_test_evaluation.py`) 的现有CSV保存逻辑将自动处理新指标。
 * [2025-05-31 01:23:14] - 修复 `run_evaluation_experiments.py` 中 `evaluate_model` 函数调用时传递 `plots_dir` 参数导致的 `TypeError`。已从调用中移除 `plots_dir` 参数。
+* [2025-05-31 02:13:50] - 修复 `run_evaluation_experiments.py` 中 `save_plot` 未定义错误。
+
+## Open Questions/Issues
+
+* 当前实现支持哪些Alpha调度策略？需要检查schedulers.py
+* 对于不同的时间序列数据集，可能需要哪些特定的预处理步骤？
+* 如何优化教师-学生模型组合以获得最佳性能？
+* 项目的测试覆盖度如何？是否需要添加更多单元测试或集成测试？
+* 如何在 `data_handler.py` 中实现噪音注入和数据平滑处理，同时保持模块化和可配置性？
+* 如何在 `evaluator.py` 中集成新的评估指标和比较逻辑？
+* 如何在 `trainer.py` 中传递验证集信息给 `alpha_scheduler`？
