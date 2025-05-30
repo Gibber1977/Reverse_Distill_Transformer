@@ -121,6 +121,7 @@ def run_experiment(
         config.SMOOTHING_METHOD = smoothing_method
         config.SIMILARITY_METRIC = 'cosine_similarity' # 保持与run_quick_test_evaluation.py一致
         config.RESULTS_DIR = experiment_results_dir # 设置为新的子文件夹
+        config.PLOTS_DIR = os.path.join(config.RESULTS_DIR, "plots") # 确保 PLOTS_DIR 指向当前实验的子目录
         
         # 将当前实验的参数赋值给 config 对象，以便在 evaluate_model 中使用
         config.DATASET_NAME = dataset_name
