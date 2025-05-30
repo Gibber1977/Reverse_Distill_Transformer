@@ -9,7 +9,7 @@ This file records architectural and implementation decisions using a list format
 
 ## Rationale 
 
-* 传统知识蒸馏使用复杂模型（教师）指导简单模型（学生），而RDT提出反向思路：利用结构简单、训练稳定的时间序列模型作为教师，去指导结构复杂、容量更大的现代深度学习模型作为学生。
+* 传统知识蒸馏使用复杂模型（教师）指导简单模型（学生），而RDT提出反向思路：利用结构简单、训练稳定、可解释性强的时间序列模型作为教师，去指导结构复杂、容量更大的现代深度学习模型作为学生。
 * 这种方法可以提升稳定性与鲁棒性，隐式注入先验知识，并通过动态平衡拟合真实数据和模仿教师模型之间的关系。
 
 ## Implementation Details
@@ -419,3 +419,28 @@ To maintain consistent model behavior and training stability, specific default v
         - `similarity_metrics` 随后会合并到 `metrics` 字典中。
 - **[`run_evaluation_experiments.py`](run_evaluation_experiments.py) 和 [`run_quick_test_evaluation.py`](run_quick_test_evaluation.py)**:
     - 无需直接修改。这些脚本中的现有 CSV 保存逻辑会自动包含来自 `evaluate_model` 返回的 `metrics` 字典中的新 `error_cos_similarity` 指标（以 `MODELTYPE_error_cos_similarity` 的形式出现在主结果CSV中，并以 `MODELTYPE_error_cos_similarity` 的形式出现在相似度结果CSV中，如果原始键包含 'similarity'）。
+---
+### Decision (Debug)
+[2025-05-31 01:46:29] - 修复 `TypeError: evaluate_model() got an unexpected keyword argument 'plots_dir'` 错误
+
+**Rationale:**
+`src/evaluator.py` 中的 `evaluate_model` 函数定义已不再接受 `plots_dir` 参数，但 `src/trainer.py` 中 `RDT_Trainer._validate_epoch` 函数在调用 `evaluate_model` 时仍然传递了该参数，导致 `TypeError`。移除此冗余参数以匹配函数签名。
+
+**Details:**
+- **[`src/trainer.py`](src/trainer.py)**:
+    - 在 `RDT_Trainer._validate_epoch` 函数中，移除了对 `evaluate_model` 函数调用的 `plots_dir` 参数。
+---
+### Decision (Code)
+[2025-05-31 02:08:01] - 优化图表绘制时机和位置
+
+**Rationale:**
+为了避免在每个 epoch 的验证阶段重复绘制 ACF、PACF 等图表，以及将训练指标和权重分布图的绘制统一到训练结束后进行，从而提高训练效率并确保图表反映最终最佳模型的状态。
+
+**Details:**
+- **[`src/trainer.py`](src/trainer.py)**:
+    - 在 `StandardTrainer` 和 `RDT_Trainer` 的 `_validate_epoch` 方法中，移除了对 `evaluate_model` 的调用。
+    - 在 `BaseTrainer` 的 `train` 方法的末尾，移除了对 `utils.plot_training_metrics` 和 `utils.plot_weights_biases_distribution` 的调用。
+- **[`run_evaluation_experiments.py`](run_evaluation_experiments.py)**:
+    - 在 `run_experiment` 函数中，每个模型（Teacher, TaskOnly, Follower, RDT）训练完成后，通过 `early_stopping` 机制加载最佳模型。
+    - 在加载最佳模型之后，**只对加载的最佳模型调用一次 `evaluate_model`**，以生成最终的评估指标和图表。
+    - 在每个模型评估之后，添加了对 `utils.plot_training_metrics` 和 `utils.plot_weights_biases_distribution` 的调用，确保训练过程中的图表在训练完成后统一生成。

@@ -217,7 +217,8 @@ def run_experiment(
             model_name=teacher_model_name
         )
         teacher_trainer.train()
-        # teacher_preds_on_test, teacher_true_on_test = teacher_trainer.predict(test_loader) # Removed
+        # 加载最佳模型
+        teacher_model = utils.load_model(teacher_model, os.path.join(config.RESULTS_DIR, f"{teacher_model_name}_teacher_model.pt"), config.DEVICE)
 
         # 评估 Teacher 模型
         teacher_metrics, teacher_true_original, teacher_preds_original = evaluate_model(
@@ -225,6 +226,10 @@ def run_experiment(
             model_name=teacher_model_name,
             dataset_type="Test Set"
         )
+        # 绘制训练指标曲线和权重分布图
+        plot_save_dir = os.path.join(config.PLOTS_DIR, teacher_model_name.lower().replace(" ", "_"))
+        utils.plot_training_metrics(teacher_trainer.history, plot_save_dir, teacher_model_name)
+        utils.plot_weights_biases_distribution(teacher_model, plot_save_dir, teacher_model_name)
         for metric, value in teacher_metrics.items():
             results[f'Teacher_{metric}'] = value
 
@@ -250,15 +255,20 @@ def run_experiment(
             model_name=f"{student_model_name}_TaskOnly"
         )
         task_only_trainer.train()
-        # task_only_preds, task_only_true = task_only_trainer.predict(test_loader) # Removed
+        # 加载最佳模型
+        task_only_model = utils.load_model(student_model, os.path.join(config.RESULTS_DIR, f"{student_model_name}_task_only_model.pt"), config.DEVICE)
 
         # 评估 TaskOnly 模型
         task_only_metrics, _, task_only_preds_original = evaluate_model(
-            task_only_trainer.model, test_loader, config.DEVICE, scaler, config, logger,
+            task_only_model, test_loader, config.DEVICE, scaler, config, logger,
             model_name=f"{student_model_name}_TaskOnly",
             teacher_predictions_original=teacher_preds_original, # Pass teacher's original predictions
             dataset_type="Test Set"
         )
+        # 绘制训练指标曲线和权重分布图
+        plot_save_dir = os.path.join(config.PLOTS_DIR, f"{student_model_name}_taskonly".lower().replace(" ", "_"))
+        utils.plot_training_metrics(task_only_trainer.history, plot_save_dir, f"{student_model_name}_TaskOnly")
+        utils.plot_weights_biases_distribution(task_only_model, plot_save_dir, f"{student_model_name}_TaskOnly")
         for metric, value in task_only_metrics.items():
             results[f'TaskOnly_{metric}'] = value
         # 相似度已包含在 task_only_metrics 中
@@ -285,15 +295,20 @@ def run_experiment(
             model_name=f"{student_model_name}_Follower"
         )
         follower_trainer.train()
-        # follower_preds, follower_true = follower_trainer.predict(test_loader) # Removed
+        # 加载最佳模型
+        follower_model = utils.load_model(student_model, os.path.join(config.RESULTS_DIR, f"{student_model_name}_follower_model.pt"), config.DEVICE)
 
         # 评估 Follower 模型
         follower_metrics, _, follower_preds_original = evaluate_model(
-            follower_trainer.model, test_loader, config.DEVICE, scaler, config, logger,
+            follower_model, test_loader, config.DEVICE, scaler, config, logger,
             model_name=f"{student_model_name}_Follower",
             teacher_predictions_original=teacher_preds_original, # Pass teacher's original predictions
             dataset_type="Test Set"
         )
+        # 绘制训练指标曲线和权重分布图
+        plot_save_dir = os.path.join(config.PLOTS_DIR, f"{student_model_name}_follower".lower().replace(" ", "_"))
+        utils.plot_training_metrics(follower_trainer.history, plot_save_dir, f"{student_model_name}_Follower")
+        utils.plot_weights_biases_distribution(follower_model, plot_save_dir, f"{student_model_name}_Follower")
         for metric, value in follower_metrics.items():
             results[f'Follower_{metric}'] = value
         # 相似度已包含在 follower_metrics 中
@@ -320,15 +335,20 @@ def run_experiment(
             model_name=f"{student_model_name}_RDT"
         )
         rdt_trainer.train()
-        # rdt_preds, rdt_true = rdt_trainer.predict(test_loader) # Removed
+        # 加载最佳模型
+        rdt_model = utils.load_model(student_model, os.path.join(config.RESULTS_DIR, f"{student_model_name}_rdt_model.pt"), config.DEVICE)
 
         # 评估 RDT 模型
         rdt_metrics, _, rdt_preds_original = evaluate_model(
-            rdt_trainer.model, test_loader, config.DEVICE, scaler, config, logger,
-            model_name=f"{student_model_name}_RDT", 
+            rdt_model, test_loader, config.DEVICE, scaler, config, logger,
+            model_name=f"{student_model_name}_RDT",
             teacher_predictions_original=teacher_preds_original, # Pass teacher's original predictions
             dataset_type="Test Set"
         )
+        # 绘制训练指标曲线和权重分布图
+        plot_save_dir = os.path.join(config.PLOTS_DIR, f"{student_model_name}_rdt".lower().replace(" ", "_"))
+        utils.plot_training_metrics(rdt_trainer.history, plot_save_dir, f"{student_model_name}_RDT")
+        utils.plot_weights_biases_distribution(rdt_model, plot_save_dir, f"{student_model_name}_RDT")
         for metric, value in rdt_metrics.items():
             results[f'RDT_{metric}'] = value
         # 相似度已包含在 rdt_metrics 中

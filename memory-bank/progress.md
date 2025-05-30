@@ -99,3 +99,5 @@ This file tracks the project's progress using a task list format.
 * [2025-05-31 00:43:15] - 完成对 `src/evaluator.py` 的修改：移除 `evaluate_model` 函数中未使用的 `plots_dir` 参数，调整绘图代码块位置并更新其目录参数。
 * [2025-05-31 01:03:59] - 完成 `error_cos_similarity` 指标的实现。在 `src/evaluator.py` 中添加了 `calculate_error_cosine_similarity` 函数，并修改了 `evaluate_model` 以集成此新指标。确认了实验脚本 (`run_evaluation_experiments.py`, `run_quick_test_evaluation.py`) 的现有CSV保存逻辑将自动处理新指标。
 * [2025-05-31 01:23:25] - 完成 `run_evaluation_experiments.py` 中 `evaluate_model` 函数调用时 `TypeError` 的修复。
+* [2025-05-31 01:46:51] - 完成 `TypeError: evaluate_model() got an unexpected keyword argument 'plots_dir'` 错误的修复。
+* [2025-05-31 02:08:45] - 完成优化图表绘制时机和位置。在 `src/trainer.py` 中移除了验证阶段的 `evaluate_model` 调用和训练结束时的图表绘制。在 `run_evaluation_experiments.py` 中，在每个模型训练完成后加载最佳模型，并统一调用 `evaluate_model` 进行最终评估和图表绘制。

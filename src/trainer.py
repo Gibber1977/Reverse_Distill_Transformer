@@ -149,12 +149,12 @@ class BaseTrainer:
         # 加载性能最好的模型
         self.model = utils.load_model(self.model, self.model_save_path, self.device)
 
-        # 绘制训练指标曲线
-        plot_save_dir = os.path.join(self.config.PLOTS_DIR, self.model_name.lower().replace(" ", "_"))
-        utils.plot_training_metrics(self.history, plot_save_dir, self.model_name)
+        # 绘制训练指标曲线 (已移动到训练结束后统一处理)
+        # plot_save_dir = os.path.join(self.config.PLOTS_DIR, self.model_name.lower().replace(" ", "_"))
+        # utils.plot_training_metrics(self.history, plot_save_dir, self.model_name)
         
-        # 绘制权重和偏置分布
-        utils.plot_weights_biases_distribution(self.model, plot_save_dir, self.model_name)
+        # 绘制权重和偏置分布 (已移动到训练结束后统一处理)
+        # utils.plot_weights_biases_distribution(self.model, plot_save_dir, self.model_name)
 
         return self.model, self.history
 
@@ -242,10 +242,15 @@ class StandardTrainer(BaseTrainer):
         # evaluate_model 期望原始尺度的预测和真实值，所以需要逆变换
         # 但 evaluate_model 内部会处理逆变换，这里直接传入 scaled 的 tensor
         # evaluate_model 返回 metrics, true_values_original, predictions_original
-        val_metrics, true_values_original, predictions_original = evaluate_model(
-            self.model, self.val_loader, device=self.device, scaler=self.scaler,
-            config_obj=self.config, logger=logging, dataset_type="Validation Set"
-        )
+        # 移除 evaluate_model 的调用，因为图表绘制已移到训练结束后统一处理
+        # val_metrics, true_values_original, predictions_original = evaluate_model(
+        #     self.model, self.val_loader, device=self.device, scaler=self.scaler,
+        #     config_obj=self.config, logger=logging, dataset_type="Validation Set"
+        # )
+        # 临时返回空值，因为 evaluate_model 不再在验证阶段调用
+        val_metrics = {}
+        true_values_original = None
+        predictions_original = None
 
         return avg_val_loss, val_metrics, true_values_original, predictions_original
 
@@ -398,12 +403,15 @@ class RDT_Trainer(BaseTrainer):
 
         # 计算验证集上的评估指标
         # student_preds_all (from self.model) will be handled by evaluate_model's internal inverse transform
-        val_metrics, _, _ = evaluate_model(
-            self.model, self.val_loader, self.device, self.scaler, self.config, logging,
-            model_name=self.model_name, plots_dir=os.path.join(self.config.RESULTS_DIR, "plots"),
-            teacher_predictions_original=teacher_preds_original, # 传入原始尺度的教师预测
-            dataset_type="Validation Set"
-        )
+        # 移除 evaluate_model 的调用，因为图表绘制已移到训练结束后统一处理
+        # val_metrics, _, _ = evaluate_model(
+        #     self.model, self.val_loader, self.device, self.scaler, self.config, logging,
+        #     model_name=self.model_name,
+        #     teacher_predictions_original=teacher_preds_original, # 传入原始尺度的教师预测
+        #     dataset_type="Validation Set"
+        # )
+        # 临时返回空值，因为 evaluate_model 不再在验证阶段调用
+        val_metrics = {}
         # 计算学生-教师相似度
         simi_student_teacher = calculate_similarity_metrics(student_preds_all, teacher_preds_all, metric_type=self.config.SIMILARITY_METRIC)
         val_metrics.update(simi_student_teacher) # 将相似度指标直接合并到 val_metrics 字典中
