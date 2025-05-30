@@ -7,6 +7,7 @@ This file tracks the project's current status, including recent changes, current
 
 * 为现有训练模型代码增加模型抗噪音效果评估功能。
 * 为现有训练模型代码增加数据去噪效果评估功能。
+* [2025-05-31 02:18:20] - 修复 `run_metrics.json` 中 `NaN` 值导致文件无法打开的问题，将 `NaN` 值转换为 1。
 * 为训练结果增加 Simi(Student,Teacher) 效果评估。
 * 增强 `get_alpha_scheduler`，使其能够基于验证集训练信息和模型相似度调整 α 权重。
 * **[已完成]** 实现新的模型相似度指标 error_cos_similarity，基于预测误差的余弦相似度。 (Timestamp: 2025-05-31 00:59:51)

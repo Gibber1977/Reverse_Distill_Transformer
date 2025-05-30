@@ -385,9 +385,11 @@ def run_experiment(
         all_run_results.append({**run_metadata, **results})
         all_similarity_results.append({**run_metadata, **similarity_results})
 
-        # 转换 NumPy float32 为 Python float，以便 JSON 序列化
+        # 转换 NumPy float32 为 Python float，以便 JSON 序列化，并将 NaN 转换为 1
         def convert_floats(obj):
             if isinstance(obj, np.float32) or isinstance(obj, np.float64):
+                if np.isnan(obj):
+                    return 1.0
                 return float(obj)
             if isinstance(obj, dict):
                 return {k: convert_floats(v) for k, v in obj.items()}
