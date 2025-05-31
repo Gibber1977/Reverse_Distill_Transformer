@@ -37,8 +37,8 @@ class Config:
         # --- 数据处理配置 ---
         self.LOOKBACK_WINDOW = 336
         self.PREDICTION_HORIZON = 192
-        self.VAL_SPLIT_RATIO = 0.2
-        self.TEST_SPLIT_RATIO = 0.2
+        self.VAL_SPLIT_RATIO = 0.1
+        self.TEST_SPLIT_RATIO = 0.1
         self.BATCH_SIZE = 32 # Increased for better GPU utilization
         self.NUM_WORKERS = 0  # Increased for faster data loading
 

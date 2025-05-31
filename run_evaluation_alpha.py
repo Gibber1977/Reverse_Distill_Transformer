@@ -22,8 +22,8 @@ import src.utils as utils
 
 # --- 实验配置 (与 run_evaluation_experiments.py 相同，或根据需要调整) ---
 DATASETS = {
-    # 'exchange_rate': './data/exchange_rate.csv',
-    'national_illness': './data/national_illness.csv',
+    'exchange_rate': './data/exchange_rate.csv',
+    # 'national_illness': './data/national_illness.csv',
     'weather': './data/weather.csv',
     'ETTh1': './data/ETT-small/ETTh1.csv',
     'ETTh2': './data/ETT-small/ETTh2.csv',

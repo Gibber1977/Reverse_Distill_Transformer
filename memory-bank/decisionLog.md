@@ -455,3 +455,18 @@ To maintain consistent model behavior and training stability, specific default v
 - **[`run_evaluation_experiments.py`](run_evaluation_experiments.py)**:
     - 将 `plot_noise_evaluation` 函数中所有对 `save_plot` 的调用修改为 `utils.save_plot`。
     - 将 `plot_smoothing_evaluation` 函数中所有对 `save_plot` 的调用修改为 `utils.save_plot`。
+---
+### Decision (Debug)
+[2025-05-31 02:52:02] - 修复 `val_loader` 为空导致的 `ZeroDivisionError`
+
+**Rationale:**
+`run_evaluation_alpha.py` 脚本在运行时出现 `ZeroDivisionError: division by zero` 错误，原因是 `val_loader` 为空。根本原因在于验证集 (`val_data_scaled`) 的数据点数量 `n_val` 不足以创建至少一个有效的样本。一个有效样本需要 `LOOKBACK_WINDOW + PREDICTION_HORIZON` 长度的数据点。当 `n_val < LOOKBACK_WINDOW + PREDICTION_HORIZON` 时，`TimeSeriesDataset` 无法生成任何样本，导致 `val_dataset` 为空，进而 `val_loader` 为空。
+
+当前配置 `LOOKBACK_WINDOW = 336` 和 `PREDICTION_HORIZON = 192` 意味着每个样本需要 528 个数据点。如果数据集较小，或者 `VAL_SPLIT_RATIO` 和 `TEST_SPLIT_RATIO` 过大，可能导致验证集的数据点不足。
+
+**Details:**
+- **[`src/config.py`](src/config.py)**:
+    - 调整 `VAL_SPLIT_RATIO` 和 `TEST_SPLIT_RATIO` 的值，以确保验证集和测试集有足够的数据量来创建样本。
+    - 将 `VAL_SPLIT_RATIO` 从 `0.2` 减小到 `0.1`。
+    - 将 `TEST_SPLIT_RATIO` 从 `0.2` 减小到 `0.1`。
+    - 这将增加训练集和验证集的相对大小，从而增加验证集中可用于创建样本的数据点数量。

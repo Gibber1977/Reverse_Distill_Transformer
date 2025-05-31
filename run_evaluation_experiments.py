@@ -387,13 +387,15 @@ def run_experiment(
 
         # 转换 NumPy float32 为 Python float，以便 JSON 序列化，并将 NaN 转换为 1
         def convert_floats(obj):
-            if isinstance(obj, np.float32) or isinstance(obj, np.float64):
+            if isinstance(obj, (np.floating, float)):  # 检查所有浮点类型
                 if np.isnan(obj):
                     return 1.0
                 return float(obj)
-            if isinstance(obj, dict):
+            elif isinstance(obj, np.integer):  # 也处理整数类型
+                return int(obj)
+            elif isinstance(obj, dict):
                 return {k: convert_floats(v) for k, v in obj.items()}
-            if isinstance(obj, list):
+            elif isinstance(obj, (list, tuple)):
                 return [convert_floats(elem) for elem in obj]
             return obj
 

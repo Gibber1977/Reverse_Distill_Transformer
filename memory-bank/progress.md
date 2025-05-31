@@ -75,7 +75,7 @@ This file tracks the project's progress using a task list format.
 * [2025-05-26 18:38:32] - 为 `run_evaluation_experiments.py` 的训练过程增加了进度条。
 * [2025-05-26 21:22:00] - 修复 `src/data_handler.py` 中 `load_and_preprocess_data` 函数在 `denoising_smoothing` 实验类型下测试集未平滑的问题，并增加了 `src/config.py` 中的 `SMOOTHING_APPLY_TEST` 配置项。
 * [2025-05-26 21:22:00] - 修复 `src/evaluator.py` 中 `evaluate_model` 和 `evaluate_robustness` 函数使用 `print` 而非 `logger` 的问题，并更新了 `run_evaluation_experiments.py` 中对这些函数的调用。
-* [2025-05-26 21:22:00] - 修复 `src/trainer.py` 中 `StandardTrainer._validate_epoch` 函数 `evaluate_model` 返回值解包不正确的问题。
+* [2025-05-26 21:22:00] - 修复 `src/trainer.py` 中 `StandardTrainer` 的 `_validate_epoch` 函数 `evaluate_model` 返回值解包不正确的问题。
 * [2025-05-26 21:22:00] - 修复 `src/trainer.py` 中 `EarlyStopping` 的 `trace_func` 默认使用 `print` 的问题，改为使用 `logging.info`。
 * [2025-05-26 21:22:00] - 修复 `src/trainer.py` 中 `BaseTrainer` 的 `self.scaler` 重复赋值问题。
 * [2025-05-26 21:22:00] - 修复 `src/trainer.py` 中 `RDT_Trainer._validate_epoch` 函数在调用 `evaluate_model` 时，`teacher_predictions_original` 参数传入的是 `scaled` 预测结果的问题，现在会传入逆变换后的原始尺度预测结果。
@@ -103,9 +103,6 @@ This file tracks the project's progress using a task list format.
 * [2025-05-31 02:08:45] - 完成优化图表绘制时机和位置。在 `src/trainer.py` 中移除了验证阶段的 `evaluate_model` 调用和训练结束时的图表绘制。在 `run_evaluation_experiments.py` 中，在每个模型训练完成后加载最佳模型，并统一调用 `evaluate_model` 进行最终评估和图表绘制。
 * [2025-05-31 02:18:32] - 修复 `run_metrics.json` 中 `NaN` 值导致文件无法打开的问题。
 * [2025-05-31 02:15:10] - 修复 `run_evaluation_experiments.py` 中 `save_plot` 未定义错误。
-### 2025-05-31 02:38:00 - Created pseudocode for `run_evaluation_alpha.py`
-- Modified `run_experiment` function to include training and evaluation for fixed alpha values (0.2, 0.4, 0.6, 0.8).
-- Modified `main` function to save results to `results_alpha` directory.
-- Added `plot_fixed_alpha_evaluation` function for visualizing results of fixed alpha experiments.
-- Ensured consistency with `run_evaluation_experiments.py` in logging and output formats.
+* [2025-05-31 02:38:00] - Created pseudocode for `run_evaluation_alpha.py`
 * [2025-05-31 02:42:55] - Created `run_evaluation_alpha.py` script.
+* [2025-05-31 02:52:02] - 诊断并修复 `val_loader` 为空导致的 `ZeroDivisionError`。通过调整 `src/config.py` 中的 `VAL_SPLIT_RATIO` 和 `TEST_SPLIT_RATIO` 来确保验证集有足够的样本。
