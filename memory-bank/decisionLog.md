@@ -470,3 +470,25 @@ To maintain consistent model behavior and training stability, specific default v
     - 将 `VAL_SPLIT_RATIO` 从 `0.2` 减小到 `0.1`。
     - 将 `TEST_SPLIT_RATIO` 从 `0.2` 减小到 `0.1`。
     - 这将增加训练集和验证集的相对大小，从而增加验证集中可用于创建样本的数据点数量。
+---
+### Decision (Code)
+[2025-05-31 10:17:00] - 优化 `run_evaluation_experiments.py` 的内存管理
+
+**Rationale:**
+在大规模实验中，`run_evaluation_experiments.py` 可能会遇到内存泄漏问题，导致长时间运行时内存占用不断增加。通过添加内存管理功能，可以在关键点释放不再需要的对象并强制垃圾回收，从而减少内存占用，提高实验的稳定性和可靠性。
+
+**Details:**
+- 导入 `gc` 和 `psutil` 模块，用于垃圾回收和内存监控。
+- 实现 `clean_memory` 函数，用于强制垃圾回收、清理 CUDA 缓存并记录当前内存使用情况。
+- 实现 `clean_between_experiments` 函数，用于在不同实验阶段之间清理内存。
+- 在关键点添加内存清理调用：
+  - 实验开始前
+  - 每个模型训练完成后
+  - 每个模型评估后
+  - 不同实验类型之间
+  - 实验结束后
+- 优化对象生命周期管理：
+  - 使用 `copy()` 方法创建训练历史记录的副本，避免引用原始对象
+  - 使用 `del` 语句显式释放不再需要的训练器对象、模型和中间结果
+  - 在每个新模型训练前重新初始化学生模型，避免使用之前的模型状态
+- 改进 `convert_floats` 函数，使其更高效地处理 NumPy 浮点类型

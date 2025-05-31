@@ -106,3 +106,4 @@ This file tracks the project's progress using a task list format.
 * [2025-05-31 02:38:00] - Created pseudocode for `run_evaluation_alpha.py`
 * [2025-05-31 02:42:55] - Created `run_evaluation_alpha.py` script.
 * [2025-05-31 02:52:02] - 诊断并修复 `val_loader` 为空导致的 `ZeroDivisionError`。通过调整 `src/config.py` 中的 `VAL_SPLIT_RATIO` 和 `TEST_SPLIT_RATIO` 来确保验证集有足够的样本。
+* [2025-05-31 10:17:30] - 完成对 `run_evaluation_experiments.py` 文件的内存优化，解决内存泄漏问题。添加了 `gc` 和 `psutil` 模块，实现了 `clean_memory` 和 `clean_between_experiments` 函数，在关键点添加了内存清理调用，优化了对象生命周期管理，并改进了 `convert_floats` 函数。

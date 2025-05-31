@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import datetime
 from tqdm import tqdm
+import gc  # 导入垃圾回收模块
+import psutil  # 用于监控内存使用情况
 
 from src.config import Config
 from src.data_handler import TimeSeriesDataset, load_and_preprocess_data
@@ -19,6 +21,22 @@ from src.schedulers import get_alpha_scheduler
 from src.evaluator import evaluate_model, calculate_similarity_metrics
 from src.utils import set_seed, setup_logging, save_results_to_csv, save_plot, save_experiment_metadata
 import src.utils as utils
+
+# 辅助函数：清理内存
+def clean_memory(logger=None):
+    """清理内存，释放未使用的缓存"""
+    # 强制垃圾回收
+    gc.collect()
+    
+    # 清理CUDA缓存
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    
+    if logger:
+        # 获取当前进程的内存使用情况
+        process = psutil.Process(os.getpid())
+        memory_info = process.memory_info()
+        logger.info(f"当前内存使用: {memory_info.rss / (1024 * 1024):.2f} MB")
 
 # --- 实验配置 (与 run_evaluation_experiments.py 相同，或根据需要调整) ---
 DATASETS = {
@@ -186,6 +204,10 @@ def run_experiment(
         config.DEVICE = str(device)
         logger.info(f"实验最终将在设备上运行: {device}")
 
+        # 记录初始内存使用情况
+        logger.info("开始实验前内存状态:")
+        clean_memory(logger)
+        
         teacher_model = get_model(teacher_model_name, config).to(device)
         student_model = get_model(student_model_name, config).to(device)
 
@@ -206,6 +228,16 @@ def run_experiment(
             model_name=teacher_model_name
         )
         teacher_trainer.train()
+        
+        # 保存训练历史记录用于绘图
+        teacher_history = teacher_trainer.history.copy()
+        
+        # 清理训练过程中产生的中间变量
+        del teacher_trainer
+        clean_memory(logger)
+        
+        # 从磁盘加载最佳模型，而不是保留内存中的模型
+        teacher_model = get_model(teacher_model_name, config).to(device)
         teacher_model = utils.load_model(teacher_model, os.path.join(config.RESULTS_DIR, f"{teacher_model_name}_teacher_model.pt"), config.DEVICE)
 
         # 评估 Teacher 模型
@@ -215,15 +247,22 @@ def run_experiment(
             dataset_type="Test Set"
         )
         plot_save_dir = os.path.join(config.PLOTS_DIR, teacher_model_name.lower().replace(" ", "_"))
-        utils.plot_training_metrics(teacher_trainer.history, plot_save_dir, teacher_model_name)
+        utils.plot_training_metrics(teacher_history, plot_save_dir, teacher_model_name)
         utils.plot_weights_biases_distribution(teacher_model, plot_save_dir, teacher_model_name)
         for metric, value in teacher_metrics.items():
             results[f'Teacher_{metric}'] = value
+            
+        logger.info("Teacher模型训练和评估后内存状态:")
+        clean_memory(logger)
 
         # 训练 TaskOnly 模型 (alpha=1)
         logger.info(f"Training TaskOnly Model (Student: {student_model_name}, alpha=1)")
         config.ALPHA_SCHEDULE = 'constant'
         config.CONSTANT_ALPHA = 1.0
+        
+        # 重新初始化学生模型，避免使用之前的模型状态
+        student_model = get_model(student_model_name, config).to(device)
+        
         task_only_trainer = RDT_Trainer(
             teacher_model=teacher_model,
             student_model=student_model,
@@ -242,7 +281,15 @@ def run_experiment(
             model_name=f"{student_model_name}_TaskOnly"
         )
         task_only_trainer.train()
-        task_only_model = utils.load_model(student_model, os.path.join(config.RESULTS_DIR, f"{student_model_name}_task_only_model.pt"), config.DEVICE)
+        
+        # 清理训练过程中产生的中间变量
+        task_only_history = task_only_trainer.history.copy()  # 保存历史记录用于绘图
+        del task_only_trainer
+        clean_memory(logger)
+        
+        # 从磁盘加载最佳模型
+        task_only_model = get_model(student_model_name, config).to(device)
+        task_only_model = utils.load_model(task_only_model, os.path.join(config.RESULTS_DIR, f"{student_model_name}_task_only_model.pt"), config.DEVICE)
 
         # 评估 TaskOnly 模型
         task_only_metrics, _, task_only_preds_original = evaluate_model(
@@ -252,15 +299,24 @@ def run_experiment(
             dataset_type="Test Set"
         )
         plot_save_dir = os.path.join(config.PLOTS_DIR, f"{student_model_name}_taskonly".lower().replace(" ", "_"))
-        utils.plot_training_metrics(task_only_trainer.history, plot_save_dir, f"{student_model_name}_TaskOnly")
+        utils.plot_training_metrics(task_only_history, plot_save_dir, f"{student_model_name}_TaskOnly")
         utils.plot_weights_biases_distribution(task_only_model, plot_save_dir, f"{student_model_name}_TaskOnly")
         for metric, value in task_only_metrics.items():
             results[f'TaskOnly_{metric}'] = value
+            
+        # 释放不再需要的变量
+        del task_only_model, task_only_history, task_only_preds_original
+        logger.info("TaskOnly模型训练和评估后内存状态:")
+        clean_memory(logger)
 
         # 训练 Follower 模型 (alpha=0)
         logger.info(f"Training Follower Model (Student: {student_model_name}, alpha=0)")
         config.ALPHA_SCHEDULE = 'constant'
         config.CONSTANT_ALPHA = 0.0
+        
+        # 重新初始化学生模型
+        student_model = get_model(student_model_name, config).to(device)
+        
         follower_trainer = RDT_Trainer(
             teacher_model=teacher_model,
             student_model=student_model,
@@ -279,7 +335,15 @@ def run_experiment(
             model_name=f"{student_model_name}_Follower"
         )
         follower_trainer.train()
-        follower_model = utils.load_model(student_model, os.path.join(config.RESULTS_DIR, f"{student_model_name}_follower_model.pt"), config.DEVICE)
+        
+        # 清理训练过程中产生的中间变量
+        follower_history = follower_trainer.history.copy()  # 保存历史记录用于绘图
+        del follower_trainer
+        clean_memory(logger)
+        
+        # 从磁盘加载最佳模型
+        follower_model = get_model(student_model_name, config).to(device)
+        follower_model = utils.load_model(follower_model, os.path.join(config.RESULTS_DIR, f"{student_model_name}_follower_model.pt"), config.DEVICE)
 
         # 评估 Follower 模型
         follower_metrics, _, follower_preds_original = evaluate_model(
@@ -289,15 +353,24 @@ def run_experiment(
             dataset_type="Test Set"
         )
         plot_save_dir = os.path.join(config.PLOTS_DIR, f"{student_model_name}_follower".lower().replace(" ", "_"))
-        utils.plot_training_metrics(follower_trainer.history, plot_save_dir, f"{student_model_name}_Follower")
+        utils.plot_training_metrics(follower_history, plot_save_dir, f"{student_model_name}_Follower")
         utils.plot_weights_biases_distribution(follower_model, plot_save_dir, f"{student_model_name}_Follower")
         for metric, value in follower_metrics.items():
             results[f'Follower_{metric}'] = value
+            
+        # 释放不再需要的变量
+        del follower_model, follower_history, follower_preds_original
+        logger.info("Follower模型训练和评估后内存状态:")
+        clean_memory(logger)
 
         # 训练 RDT 模型 (alpha 动态调度)
         logger.info(f"Training RDT Model (Student: {student_model_name}, dynamic alpha)")
         config.ALPHA_SCHEDULE = 'linear'
         config.CONSTANT_ALPHA = None
+        
+        # 重新初始化学生模型
+        student_model = get_model(student_model_name, config).to(device)
+        
         rdt_trainer = RDT_Trainer(
             teacher_model=teacher_model,
             student_model=student_model,
@@ -316,7 +389,15 @@ def run_experiment(
             model_name=f"{student_model_name}_RDT"
         )
         rdt_trainer.train()
-        rdt_model = utils.load_model(student_model, os.path.join(config.RESULTS_DIR, f"{student_model_name}_rdt_model.pt"), config.DEVICE)
+        
+        # 清理训练过程中产生的中间变量
+        rdt_history = rdt_trainer.history.copy()  # 保存历史记录用于绘图
+        del rdt_trainer
+        clean_memory(logger)
+        
+        # 从磁盘加载最佳模型
+        rdt_model = get_model(student_model_name, config).to(device)
+        rdt_model = utils.load_model(rdt_model, os.path.join(config.RESULTS_DIR, f"{student_model_name}_rdt_model.pt"), config.DEVICE)
 
         # 评估 RDT 模型
         rdt_metrics, _, rdt_preds_original = evaluate_model(
@@ -326,10 +407,15 @@ def run_experiment(
             dataset_type="Test Set"
         )
         plot_save_dir = os.path.join(config.PLOTS_DIR, f"{student_model_name}_rdt".lower().replace(" ", "_"))
-        utils.plot_training_metrics(rdt_trainer.history, plot_save_dir, f"{student_model_name}_RDT")
+        utils.plot_training_metrics(rdt_history, plot_save_dir, f"{student_model_name}_RDT")
         utils.plot_weights_biases_distribution(rdt_model, plot_save_dir, f"{student_model_name}_RDT")
         for metric, value in rdt_metrics.items():
             results[f'RDT_{metric}'] = value
+            
+        # 释放不再需要的变量
+        del rdt_model, rdt_history, rdt_preds_original
+        logger.info("RDT模型训练和评估后内存状态:")
+        clean_memory(logger)
 
         # --- 新增：训练和评估固定 Alpha 值的模型 ---
         for alpha_val in FIXED_ALPHA_VALUES:
@@ -394,6 +480,10 @@ def run_experiment(
             # 重新获取学生模型实例，确保是新的模型，避免权重污染
             fixed_alpha_student_model = get_model(student_model_name, current_fixed_alpha_config).to(device)
 
+            # 记录当前固定Alpha值模型训练开始前的内存状态
+            logger.info(f"固定Alpha={alpha_val}模型训练前内存状态:")
+            clean_memory(logger)
+            
             fixed_alpha_trainer = RDT_Trainer(
                 teacher_model=teacher_model,
                 student_model=fixed_alpha_student_model,
@@ -412,7 +502,15 @@ def run_experiment(
                 model_name=model_name_fixed_alpha
             )
             fixed_alpha_trainer.train()
-            fixed_alpha_model = utils.load_model(fixed_alpha_student_model, os.path.join(current_fixed_alpha_config.RESULTS_DIR, f"{model_name_fixed_alpha}_model.pt"), current_fixed_alpha_config.DEVICE)
+            
+            # 清理训练过程中产生的中间变量
+            fixed_alpha_history = fixed_alpha_trainer.history.copy()  # 保存历史记录用于绘图
+            del fixed_alpha_trainer
+            clean_memory(logger)
+            
+            # 从磁盘加载最佳模型
+            fixed_alpha_model = get_model(student_model_name, current_fixed_alpha_config).to(device)
+            fixed_alpha_model = utils.load_model(fixed_alpha_model, os.path.join(current_fixed_alpha_config.RESULTS_DIR, f"{model_name_fixed_alpha}_model.pt"), current_fixed_alpha_config.DEVICE)
 
             fixed_alpha_metrics, _, fixed_alpha_preds_original = evaluate_model(
                 fixed_alpha_model, test_loader, current_fixed_alpha_config.DEVICE, scaler, current_fixed_alpha_config, logger,
@@ -421,10 +519,15 @@ def run_experiment(
                 dataset_type="Test Set"
             )
             plot_save_dir = os.path.join(current_fixed_alpha_config.PLOTS_DIR, model_name_fixed_alpha.lower().replace(" ", "_"))
-            utils.plot_training_metrics(fixed_alpha_trainer.history, plot_save_dir, model_name_fixed_alpha)
+            utils.plot_training_metrics(fixed_alpha_history, plot_save_dir, model_name_fixed_alpha)
             utils.plot_weights_biases_distribution(fixed_alpha_model, plot_save_dir, model_name_fixed_alpha)
             for metric, value in fixed_alpha_metrics.items():
                 results[f'{model_name_fixed_alpha}_{metric}'] = value
+                
+            # 释放不再需要的变量
+            del fixed_alpha_model, fixed_alpha_history, fixed_alpha_preds_original, fixed_alpha_student_model, current_fixed_alpha_config
+            logger.info(f"固定Alpha={alpha_val}模型训练和评估后内存状态:")
+            clean_memory(logger)
         # --- 新增部分结束 ---
 
         # 从指标字典中提取相似度结果 (需要包含新增的固定 Alpha 模型)
@@ -507,6 +610,10 @@ def main():
     os.makedirs("log", exist_ok=True)
     log_file = os.path.join("log", "experiment_alpha.log") # 可以修改日志文件名
     logger = setup_logging(log_file)
+    
+    # 初始化时清理内存
+    logger.info("实验开始前内存状态:")
+    clean_memory(logger)
 
     current_config = Config()
     current_config.LOOKBACK_WINDOW = LOOKBACK_WINDOW
@@ -561,6 +668,15 @@ def main():
     # 调整 total_subtasks_per_combination 以包含新的固定 Alpha 模型
     total_subtasks_per_combination = (1 + len(NOISE_LEVELS) + len(SMOOTHING_FACTORS) + len(FIXED_ALPHA_VALUES))
     total_experiments = len(DATASETS) * len(PREDICTION_HORIZONS) * len(MODELS) * total_subtasks_per_combination * STABILITY_RUNS
+    
+    # 在每个主要实验阶段之间清理内存
+    def clean_between_experiments():
+        # 强制垃圾回收
+        gc.collect()
+        # 清理CUDA缓存
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        logger.info("实验阶段之间内存清理完成")
     with tqdm(total=total_experiments, desc="Overall Experiment Progress") as pbar:
         for dataset_name, dataset_path in DATASETS.items():
             for pred_horizon in PREDICTION_HORIZONS:
@@ -589,6 +705,9 @@ def main():
                     )
                     all_experiment_results.extend(run_results)
                     all_experiment_similarity_results.extend(sim_results)
+                    
+                    # 在不同实验类型之间清理内存
+                    clean_between_experiments()
 
                     # 2. 噪音注入评估
                     logger.info("\n--- Running Noise Injection Evaluation ---")
@@ -603,6 +722,9 @@ def main():
                         )
                         all_experiment_results.extend(run_results)
                         all_experiment_similarity_results.extend(sim_results)
+                    
+                    # 在不同实验类型之间清理内存
+                    clean_between_experiments()
 
                     # 3. 去噪平滑评估
                     logger.info("\n--- Running Denoising Smoothing Evaluation ---")
@@ -618,6 +740,9 @@ def main():
                         )
                         all_experiment_results.extend(run_results)
                         all_experiment_similarity_results.extend(sim_results)
+                    
+                    # 在不同实验类型之间清理内存
+                    clean_between_experiments()
                     
                     # 在每个实验组合完成后，生成并保存可视化结果
                     logger.info(f"\n--- Generating Visualizations for {current_experiment_combination_dir} ---")
@@ -646,6 +771,10 @@ def main():
     logger.info(f"All experiment results saved to: {results_csv_path}")
     logger.info(f"All similarity results saved to: {similarity_csv_path}")
 
+    # 实验结束后最终清理内存
+    logger.info("实验结束后内存状态:")
+    clean_memory(logger)
+    
     logger.info("Comprehensive evaluation experiments completed.")
 
 # --- 新增绘图函数：plot_fixed_alpha_evaluation ---
