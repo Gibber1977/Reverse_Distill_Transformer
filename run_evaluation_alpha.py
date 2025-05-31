@@ -40,14 +40,17 @@ def clean_memory(logger=None):
 
 # --- 实验配置 (与 run_evaluation_experiments.py 相同，或根据需要调整) ---
 DATASETS = {
-    # 'exchange_rate': './data/exchange_rate.csv',
+    'PEMS_0':'./data/PEMS_0.csv',
+    'exchange_rate': './data/exchange_rate.csv',
     # 'national_illness': './data/national_illness.csv',
     'weather': './data/weather.csv',
     'ETTh1': './data/ETT-small/ETTh1.csv',
     # 'ETTh2': './data/ETT-small/ETTh2.csv',
+    # 'ETTm1': './data/ETT-small/ETTm1.csv',
+    # 'ETTm2': './data/ETT-small/ETTm2.csv',
 }
 
-PREDICTION_HORIZONS = [96, 336, 720]
+PREDICTION_HORIZONS = [24, 288, 720]
 LOOKBACK_WINDOW = 192
 EPOCHS = 100
 STABILITY_RUNS = 1
@@ -439,6 +442,7 @@ def run_experiment(
             current_fixed_alpha_config.SIMILARITY_METRIC = 'cosine_similarity'
             current_fixed_alpha_config.RESULTS_DIR = experiment_results_dir # 仍然使用当前实验的results目录
             current_fixed_alpha_config.PLOTS_DIR = os.path.join(current_fixed_alpha_config.RESULTS_DIR, "plots")
+            current_fixed_alpha_config.N_FEATURES = config.N_FEATURES  # 确保设置N_FEATURES，用于反归一化
             
             current_fixed_alpha_config.DATASET_NAME = dataset_name
             current_fixed_alpha_config.NOISE_LEVEL = noise_level
@@ -838,13 +842,19 @@ def plot_fixed_alpha_evaluation(results_df, similarity_df, output_dir, logger):
         logger.warning("No fixed alpha evaluation data to plot.")
         return
 
-    metrics = ['MSE', 'MAE']
+    metrics = ['MSE', 'MAE','MAPE','WAPE']
     models_to_plot = ['Teacher', 'TaskOnly', 'Follower', 'RDT'] + [f'Alpha{str(alpha).replace(".", "")}' for alpha in FIXED_ALPHA_VALUES]
 
     for dataset in fixed_alpha_df['dataset'].unique():
         for horizon in fixed_alpha_df['pred_horizon'].unique():
             subset_df = fixed_alpha_df[(fixed_alpha_df['dataset'] == dataset) & (fixed_alpha_df['pred_horizon'] == horizon)]
-            subset_sim_df = fixed_alpha_sim_df[(fixed_alpha_sim_df['dataset'] == dataset) & (fixed_alpha_sim_df['pred_horizon'] == horizon)]
+            
+            # 检查fixed_alpha_sim_df是否为空或是否有必要的列
+            if fixed_alpha_sim_df.empty or 'dataset' not in fixed_alpha_sim_df.columns or 'pred_horizon' not in fixed_alpha_sim_df.columns:
+                subset_sim_df = pd.DataFrame()  # 创建空DataFrame
+                logger.warning(f"Similarity DataFrame is empty or missing required columns for dataset={dataset}, horizon={horizon}")
+            else:
+                subset_sim_df = fixed_alpha_sim_df[(fixed_alpha_sim_df['dataset'] == dataset) & (fixed_alpha_sim_df['pred_horizon'] == horizon)]
 
             if subset_df.empty:
                 continue
@@ -934,8 +944,19 @@ def plot_fixed_alpha_evaluation(results_df, similarity_df, output_dir, logger):
 
 # (plot_noise_evaluation 和 plot_smoothing_evaluation 函数保持不变)
 def plot_noise_evaluation(results_df, similarity_df, output_dir, logger):
+    # 检查 results_df 是否包含 'experiment_type' 列
+    if 'experiment_type' not in results_df.columns:
+        logger.warning("No 'experiment_type' column in results_df. Cannot filter for noise injection data.")
+        return
+    
     noise_df = results_df[results_df['experiment_type'] == 'noise_injection']
-    noise_sim_df = similarity_df[similarity_df['experiment_type'] == 'noise_injection']
+    
+    # 检查 similarity_df 是否包含 'experiment_type' 列
+    if 'experiment_type' not in similarity_df.columns:
+        logger.warning("No 'experiment_type' column in similarity_df. Cannot filter for noise injection data.")
+        noise_sim_df = pd.DataFrame()
+    else:
+        noise_sim_df = similarity_df[similarity_df['experiment_type'] == 'noise_injection']
 
     if noise_df.empty:
         logger.warning("No noise injection data to plot.")
@@ -986,8 +1007,19 @@ def plot_noise_evaluation(results_df, similarity_df, output_dir, logger):
                 plt.close()
 
 def plot_smoothing_evaluation(results_df, similarity_df, output_dir, logger):
+    # 检查 results_df 是否包含 'experiment_type' 列
+    if 'experiment_type' not in results_df.columns:
+        logger.warning("No 'experiment_type' column in results_df. Cannot filter for denoising_smoothing data.")
+        return
+    
     smoothing_df = results_df[results_df['experiment_type'] == 'denoising_smoothing']
-    smoothing_sim_df = similarity_df[similarity_df['experiment_type'] == 'denoising_smoothing']
+    
+    # 检查 similarity_df 是否包含 'experiment_type' 列
+    if 'experiment_type' not in similarity_df.columns:
+        logger.warning("No 'experiment_type' column in similarity_df. Cannot filter for denoising_smoothing data.")
+        smoothing_sim_df = pd.DataFrame()
+    else:
+        smoothing_sim_df = similarity_df[similarity_df['experiment_type'] == 'denoising_smoothing']
 
     if smoothing_df.empty:
         logger.warning("No smoothing evaluation data to plot.")

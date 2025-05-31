@@ -107,3 +107,5 @@ This file tracks the project's progress using a task list format.
 * [2025-05-31 02:42:55] - Created `run_evaluation_alpha.py` script.
 * [2025-05-31 02:52:02] - 诊断并修复 `val_loader` 为空导致的 `ZeroDivisionError`。通过调整 `src/config.py` 中的 `VAL_SPLIT_RATIO` 和 `TEST_SPLIT_RATIO` 来确保验证集有足够的样本。
 * [2025-05-31 10:17:30] - 完成对 `run_evaluation_experiments.py` 文件的内存优化，解决内存泄漏问题。添加了 `gc` 和 `psutil` 模块，实现了 `clean_memory` 和 `clean_between_experiments` 函数，在关键点添加了内存清理调用，优化了对象生命周期管理，并改进了 `convert_floats` 函数。
+* [2025-05-31 13:10:00] - 修复了 `run_evaluation_alpha.py` 中固定alpha模型未进行数据反归一化处理的问题。问题根源在于创建固定alpha模型的配置对象时，没有设置 `N_FEATURES` 属性，导致反归一化失败，使用归一化后的数据计算指标。通过添加 `current_fixed_alpha_config.N_FEATURES = config.N_FEATURES` 解决了这个问题。
+* [2025-05-31 13:14:00] - 修复了 `run_evaluation_alpha.py` 中的 `KeyError: 'dataset'` 错误。问题出在 `plot_fixed_alpha_evaluation` 函数中，当尝试访问 `fixed_alpha_sim_df` 的 'dataset' 列时。通过添加额外的检查，确保在尝试访问列之前，检查数据框是否为空或是否有必要的列，避免了程序崩溃。

@@ -492,3 +492,32 @@ To maintain consistent model behavior and training stability, specific default v
   - 使用 `del` 语句显式释放不再需要的训练器对象、模型和中间结果
   - 在每个新模型训练前重新初始化学生模型，避免使用之前的模型状态
 - 改进 `convert_floats` 函数，使其更高效地处理 NumPy 浮点类型
+---
+### Decision (Debug)
+[2025-05-31 13:09:00] - 修复固定alpha模型未进行数据反归一化处理的问题
+
+**Rationale:**
+在`run_evaluation_alpha.py`中，固定alpha模型（PatchTST_Alpha02、PatchTST_Alpha04等）的评估结果与其他模型（Teacher、TaskOnly、Follower、RDT）相差几个数量级。经过分析，发现问题在于创建固定alpha模型的配置对象`current_fixed_alpha_config`时，没有设置`N_FEATURES`属性，导致在`src/evaluator.py`的`_inverse_transform_target_cols`函数中无法正确执行反归一化操作。当反归一化失败时，评估函数会使用归一化后的数据计算指标，这就是为什么固定alpha模型的MSE和MAE值非常小。
+
+**Details:**
+- 在`run_evaluation_alpha.py`文件中，修改了创建固定alpha模型配置对象的代码，添加了`current_fixed_alpha_config.N_FEATURES = config.N_FEATURES`，确保为固定alpha模型的配置对象设置正确的`N_FEATURES`值。
+- 这样可以确保在`src/evaluator.py`的`_inverse_transform_target_cols`函数中能够正确执行反归一化操作，使得固定alpha模型的评估结果与其他模型在相同数量级上。
+- 建议在`Config`类中添加一个`copy()`方法，用于复制配置对象，确保所有必要的属性都被正确复制，避免类似问题再次发生。
+---
+### Decision (Debug)
+[2025-05-31 13:13:00] - 修复`run_evaluation_alpha.py`中的`KeyError: 'dataset'`错误
+
+**Rationale:**
+在运行修复了反归一化问题的`run_evaluation_alpha.py`后，出现了新的错误：`KeyError: 'dataset'`。这个错误发生在`plot_fixed_alpha_evaluation`函数中，当尝试访问`fixed_alpha_sim_df`的'dataset'列时。问题原因是`fixed_alpha_sim_df`可能为空或缺少必要的列，导致在尝试过滤数据时出错。
+
+**Details:**
+- 在`plot_fixed_alpha_evaluation`函数中添加了额外的检查，确保在尝试访问`fixed_alpha_sim_df`的列之前，检查它是否为空或是否有必要的列：
+```python
+if fixed_alpha_sim_df.empty or 'dataset' not in fixed_alpha_sim_df.columns or 'pred_horizon' not in fixed_alpha_sim_df.columns:
+    subset_sim_df = pd.DataFrame()  # 创建空DataFrame
+    logger.warning(f"Similarity DataFrame is empty or missing required columns for dataset={dataset}, horizon={horizon}")
+else:
+    subset_sim_df = fixed_alpha_sim_df[(fixed_alpha_sim_df['dataset'] == dataset) & (fixed_alpha_sim_df['pred_horizon'] == horizon)]
+```
+- 这样，即使`fixed_alpha_sim_df`为空或缺少必要的列，程序也不会崩溃，而是会创建一个空的`subset_sim_df`并继续执行。
+- 函数中已有对`subset_sim_df.empty`的检查，所以后续代码不会因为`subset_sim_df`为空而出错。
