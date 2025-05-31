@@ -492,11 +492,23 @@ def run_experiment(
         serializable_results = convert_floats(results)
         serializable_similarity_results = convert_floats(similarity_results)
 
+        # 移除Teacher模型的相似度指标字段
+        if 'Teacher_similarity_cosine_similarity' in serializable_results:
+            del serializable_results['Teacher_similarity_cosine_similarity']
+        if 'Teacher_error_cos_similarity' in serializable_results:
+            del serializable_results['Teacher_error_cos_similarity']
+
         # 保存当前运行的独立指标和相似度结果
         run_metrics_path = os.path.join(experiment_results_dir, "run_metrics.json")
         with open(run_metrics_path, 'w') as f:
             json.dump(serializable_results, f, indent=4)
         logger.info(f"Individual run metrics saved to: {run_metrics_path}")
+
+        # 同样移除similarity_results中的Teacher相似度指标
+        if 'Teacher_similarity_cosine_similarity' in serializable_similarity_results:
+            del serializable_similarity_results['Teacher_similarity_cosine_similarity']
+        if 'Teacher_error_cos_similarity' in serializable_similarity_results:
+            del serializable_similarity_results['Teacher_error_cos_similarity']
 
         run_similarity_path = os.path.join(experiment_results_dir, "run_similarity.json")
         with open(run_similarity_path, 'w') as f:

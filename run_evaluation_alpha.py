@@ -40,11 +40,11 @@ def clean_memory(logger=None):
 
 # --- 实验配置 (与 run_evaluation_experiments.py 相同，或根据需要调整) ---
 DATASETS = {
-    'exchange_rate': './data/exchange_rate.csv',
+    # 'exchange_rate': './data/exchange_rate.csv',
     # 'national_illness': './data/national_illness.csv',
     'weather': './data/weather.csv',
     'ETTh1': './data/ETT-small/ETTh1.csv',
-    'ETTh2': './data/ETT-small/ETTh2.csv',
+    # 'ETTh2': './data/ETT-small/ETTh2.csv',
 }
 
 PREDICTION_HORIZONS = [96, 336, 720]
@@ -54,10 +54,12 @@ STABILITY_RUNS = 1
 
 MODELS = [('DLinear', 'PatchTST')]
 
-NOISE_LEVELS = [ 0.02, 0.10, 0.20]
+# NOISE_LEVELS = [ 0.02, 0.10, 0.20]
+NOISE_LEVELS = []
 NOISE_TYPE = 'gaussian'
 
-SMOOTHING_FACTORS = [ 0.10,  0.30, 0.5]
+# SMOOTHING_FACTORS = [ 0.10,  0.30, 0.5]
+SMOOTHING_FACTORS = []
 SMOOTHING_METHOD = 'moving_average'
 
 # 新增固定 Alpha 值列表
@@ -570,23 +572,37 @@ def run_experiment(
         all_similarity_results.append({**run_metadata, **similarity_results})
 
         def convert_floats(obj):
-            if isinstance(obj, np.float32) or isinstance(obj, np.float64):
+            if isinstance(obj, np.float32) or isinstance(obj, np.float64) or isinstance(obj, float):
                 if np.isnan(obj):
                     return 1.0
                 return float(obj)
-            if isinstance(obj, dict):
+            elif isinstance(obj, np.integer):  # 也处理整数类型
+                return int(obj)
+            elif isinstance(obj, dict):
                 return {k: convert_floats(v) for k, v in obj.items()}
-            if isinstance(obj, list):
+            elif isinstance(obj, (list, tuple)):
                 return [convert_floats(elem) for elem in obj]
             return obj
 
         serializable_results = convert_floats(results)
         serializable_similarity_results = convert_floats(similarity_results)
 
+        # 移除Teacher模型的相似度指标字段
+        if 'Teacher_similarity_cosine_similarity' in serializable_results:
+            del serializable_results['Teacher_similarity_cosine_similarity']
+        if 'Teacher_error_cos_similarity' in serializable_results:
+            del serializable_results['Teacher_error_cos_similarity']
+
         run_metrics_path = os.path.join(experiment_results_dir, "run_metrics.json")
         with open(run_metrics_path, 'w') as f:
             json.dump(serializable_results, f, indent=4)
         logger.info(f"Individual run metrics saved to: {run_metrics_path}")
+
+        # 同样移除similarity_results中的Teacher相似度指标
+        if 'Teacher_similarity_cosine_similarity' in serializable_similarity_results:
+            del serializable_similarity_results['Teacher_similarity_cosine_similarity']
+        if 'Teacher_error_cos_similarity' in serializable_similarity_results:
+            del serializable_similarity_results['Teacher_error_cos_similarity']
 
         run_similarity_path = os.path.join(experiment_results_dir, "run_similarity.json")
         with open(run_similarity_path, 'w') as f:
