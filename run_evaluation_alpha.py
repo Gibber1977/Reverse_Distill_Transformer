@@ -799,30 +799,40 @@ def plot_fixed_alpha_evaluation(results_df, similarity_df, output_dir, logger):
     fixed_alpha_model_prefixes = [f'Alpha{str(alpha).replace(".", "")}' for alpha in FIXED_ALPHA_VALUES]
     
     # 过滤出包含固定 Alpha 模型结果的行
-    fixed_alpha_results_rows = []
-    for index, row in results_df.iterrows():
-        is_fixed_alpha_row = False
+    # 检查 results_df 的列是否包含固定 Alpha 模型的前缀
+    has_fixed_alpha_cols = False
+    for col in results_df.columns:
         for prefix in fixed_alpha_model_prefixes:
-            if any(col.startswith(f'PatchTST_{prefix}') for col in row.index):
-                is_fixed_alpha_row = True
+            if col.startswith(f'PatchTST_{prefix}'):
+                has_fixed_alpha_cols = True
                 break
-        if is_fixed_alpha_row:
-            fixed_alpha_results_rows.append(row)
+        if has_fixed_alpha_cols:
+            break
     
-    fixed_alpha_df = pd.DataFrame(fixed_alpha_results_rows)
+    if has_fixed_alpha_cols:
+        # 如果有固定 Alpha 模型的列，就使用原始的 results_df
+        fixed_alpha_df = results_df.copy()
+    else:
+        # 如果没有固定 Alpha 模型的列，就创建一个空的 DataFrame
+        fixed_alpha_df = pd.DataFrame()
     
     # 同样处理相似度数据
-    fixed_alpha_sim_rows = []
-    for index, row in similarity_df.iterrows():
-        is_fixed_alpha_row = False
+    # 检查 similarity_df 的列是否包含固定 Alpha 模型的前缀
+    has_fixed_alpha_cols = False
+    for col in similarity_df.columns:
         for prefix in fixed_alpha_model_prefixes:
-            if any(col.startswith(f'PatchTST_{prefix}') for col in row.index):
-                is_fixed_alpha_row = True
+            if col.startswith(f'PatchTST_{prefix}'):
+                has_fixed_alpha_cols = True
                 break
-        if is_fixed_alpha_row:
-            fixed_alpha_sim_rows.append(row)
+        if has_fixed_alpha_cols:
+            break
     
-    fixed_alpha_sim_df = pd.DataFrame(fixed_alpha_sim_rows)
+    if has_fixed_alpha_cols:
+        # 如果有固定 Alpha 模型的列，就使用原始的 similarity_df
+        fixed_alpha_sim_df = similarity_df.copy()
+    else:
+        # 如果没有固定 Alpha 模型的列，就创建一个空的 DataFrame
+        fixed_alpha_sim_df = pd.DataFrame()
 
     if fixed_alpha_df.empty:
         logger.warning("No fixed alpha evaluation data to plot.")
