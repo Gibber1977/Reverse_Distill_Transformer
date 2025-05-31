@@ -45,19 +45,20 @@ def clean_between_experiments():
 # --- 实验配置 ---
 DATASETS = {
     'exchange_rate': './data/exchange_rate.csv',
-    'national_illness': './data/national_illness.csv',
+    # 'national_illness': './data/national_illness.csv',
     'weather': './data/weather.csv',
     'ETTh1': './data/ETT-small/ETTh1.csv',
-    'ETTh2': './data/ETT-small/ETTh2.csv',
+    # 'ETTh2': './data/ETT-small/ETTh2.csv',
     # 'ETTm1': './data/ETT-small/ETTm1.csv',
     # 'ETTm2': './data/ETT-small/ETTm2.csv',
+    'PEMS_0':'data\PEMS_0.csv'
 }
 
 # PREDICTION_HORIZONS = [24, 96, 192, 336, 720]
-PREDICTION_HORIZONS = [96, 336, 720]
+PREDICTION_HORIZONS = [ 720]
 LOOKBACK_WINDOW = 192
 EPOCHS = 100
-STABILITY_RUNS = 1
+STABILITY_RUNS = 3
 
 # 模型组合: (Teacher, Student)
 MODELS = [('DLinear', 'PatchTST')]

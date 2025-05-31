@@ -32,6 +32,7 @@ class Config:
             'data/ETT-small/ETTh2.csv': 'h',
             'data/ETT-small/ETTm1.csv': 'min',
             'data/ETT-small/ETTm2.csv': 'min',
+            'PEMS_0.csv':'min',
         }
 
         # --- 数据处理配置 ---
