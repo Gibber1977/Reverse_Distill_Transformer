@@ -233,43 +233,43 @@ def plot_residuals_analysis(y_true, y_pred, save_dir, model_name="Model", series
         logging.warning(f"Series index {series_idx} is out of bounds for available features ({y_true.shape[2]}). Skipping residuals analysis.")
         return
 
-    # 提取指定序列的数据并展平
-    y_true_flat = y_true[:, :, series_idx].reshape(-1)
-    y_pred_flat = y_pred[:, :, series_idx].reshape(-1)
-    residuals = y_true_flat - y_pred_flat
+    # # 提取指定序列的数据并展平
+    # y_true_flat = y_true[:, :, series_idx].reshape(-1)
+    # y_pred_flat = y_pred[:, :, series_idx].reshape(-1)
+    # residuals = y_true_flat - y_pred_flat
 
-    if target_cols_list and series_idx < len(target_cols_list):
-        target_col_name = target_cols_list[series_idx]
-    else:
-        target_col_name = f"Series {series_idx}"
+    # if target_cols_list and series_idx < len(target_cols_list):
+    #     target_col_name = target_cols_list[series_idx]
+    # else:
+    #     target_col_name = f"Series {series_idx}"
     
-    # 1. 残差时间序列图
-    plt.figure(figsize=(15, 6))
-    plt.plot(residuals, label='Residuals', color='red', alpha=0.7)
-    plt.axhline(0, color='gray', linestyle='--', linewidth=1)
-    plt.title(f'{model_name} Residuals Time Series - {target_col_name}')
-    plt.xlabel('Time Point (Flattened)')
-    plt.ylabel('Residual Value')
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    residuals_ts_path = os.path.join(save_dir, f'{model_name.lower()}_{target_col_name.lower().replace(" ", "_")}_residuals_ts.png')
-    plt.savefig(residuals_ts_path)
-    plt.close()
-    logging.info(f"Residuals time series plot saved to {residuals_ts_path}")
+    # # 1. 残差时间序列图
+    # plt.figure(figsize=(15, 6))
+    # plt.plot(residuals, label='Residuals', color='red', alpha=0.7)
+    # plt.axhline(0, color='gray', linestyle='--', linewidth=1)
+    # plt.title(f'{model_name} Residuals Time Series - {target_col_name}')
+    # plt.xlabel('Time Point (Flattened)')
+    # plt.ylabel('Residual Value')
+    # plt.legend()
+    # plt.grid(True)
+    # plt.tight_layout()
+    # residuals_ts_path = os.path.join(save_dir, f'{model_name.lower()}_{target_col_name.lower().replace(" ", "_")}_residuals_ts.png')
+    # plt.savefig(residuals_ts_path)
+    # plt.close()
+    # logging.info(f"Residuals time series plot saved to {residuals_ts_path}")
 
-    # 2. 残差分布直方图
-    plt.figure(figsize=(10, 6))
-    sns.histplot(residuals, kde=True, bins=50, color='skyblue')
-    plt.title(f'{model_name} Residuals Distribution - {target_col_name}')
-    plt.xlabel('Residual Value')
-    plt.ylabel('Frequency')
-    plt.grid(True)
-    plt.tight_layout()
-    residuals_dist_path = os.path.join(save_dir, f'{model_name.lower()}_{target_col_name.lower().replace(" ", "_")}_residuals_distribution.png')
-    plt.savefig(residuals_dist_path)
-    plt.close()
-    logging.info(f"Residuals distribution plot saved to {residuals_dist_path}")
+    # 2. 残差分布直方图 (默认不绘制)
+    # plt.figure(figsize=(10, 6))
+    # sns.histplot(residuals, kde=True, bins=50, color='skyblue')
+    # plt.title(f'{model_name} Residuals Distribution - {target_col_name}')
+    # plt.xlabel('Residual Value')
+    # plt.ylabel('Frequency')
+    # plt.grid(True)
+    # plt.tight_layout()
+    # residuals_dist_path = os.path.join(save_dir, f'{model_name.lower()}_{target_col_name.lower().replace(" ", "_")}_residuals_distribution.png')
+    # plt.savefig(residuals_dist_path)
+    # plt.close()
+    # logging.info(f"Residuals distribution plot saved to {residuals_dist_path}")
 
 def save_results(metrics_dict, filename):
     """将指标字典保存为 CSV 文件"""

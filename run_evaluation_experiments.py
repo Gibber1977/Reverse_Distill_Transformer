@@ -51,14 +51,14 @@ DATASETS = {
     # 'ETTh2': './data/ETT-small/ETTh2.csv',
     # 'ETTm1': './data/ETT-small/ETTm1.csv',
     # 'ETTm2': './data/ETT-small/ETTm2.csv',
-    'PEMS_0':'data\PEMS_0.csv'
+    # 'PEMS_0':'./data/PEMS_0.csv'
 }
 
 # PREDICTION_HORIZONS = [24, 96, 192, 336, 720]
-PREDICTION_HORIZONS = [ 720]
+PREDICTION_HORIZONS = [ 24,720]
 LOOKBACK_WINDOW = 192
-EPOCHS = 100
-STABILITY_RUNS = 3
+EPOCHS = 50
+STABILITY_RUNS = 1
 
 # 模型组合: (Teacher, Student)
 MODELS = [('DLinear', 'PatchTST')]
@@ -124,10 +124,49 @@ def run_experiment(
         # 断点续训逻辑
         completion_marker_file = os.path.join(experiment_results_dir, "run_completed.txt")
         if os.path.exists(completion_marker_file):
-            logger.info(f"--- Stability Run {run_idx + 1}/{stability_runs} (Seed: {current_seed}) already completed. Skipping. ---")
-            if pbar:
-                pbar.update(1)
-            continue # 跳过已完成的运行
+            logger.info(f"--- Stability Run {run_idx + 1}/{stability_runs} (Seed: {current_seed}) already completed. Loading results. ---")
+            
+            # 尝试加载已保存的结果
+            run_metrics_path = os.path.join(experiment_results_dir, "run_metrics.json")
+            run_similarity_path = os.path.join(experiment_results_dir, "run_similarity.json")
+            
+            loaded_results = {}
+            loaded_similarity_results = {}
+            
+            try:
+                with open(run_metrics_path, 'r') as f:
+                    loaded_results = json.load(f)
+                with open(run_similarity_path, 'r') as f:
+                    loaded_similarity_results = json.load(f)
+                
+                # 重新构建 run_metadata
+                run_metadata = {
+                    'dataset': dataset_name,
+                    'pred_horizon': pred_horizon,
+                    'lookback_window': lookback_window,
+                    'epochs': epochs,
+                    'teacher_model': teacher_model_name,
+                    'student_model': student_model_name,
+                    'noise_level': noise_level,
+                    'noise_type': noise_type,
+                    'smoothing_weight_smoothing': smoothing_weight_smoothing,
+                    'smoothing_method': smoothing_method,
+                    'experiment_type': experiment_type,
+                    'run_idx': run_idx + 1
+                }
+                
+                all_run_results.append({**run_metadata, **loaded_results})
+                all_similarity_results.append({**run_metadata, **loaded_similarity_results})
+                
+                if pbar:
+                    pbar.update(1)
+                continue # 跳过已完成的运行
+            except FileNotFoundError:
+                logger.warning(f"--- Completion marker found but results files missing for run {run_idx + 1}. Re-running experiment. ---")
+            except json.JSONDecodeError:
+                logger.warning(f"--- Completion marker found but results files corrupted for run {run_idx + 1}. Re-running experiment. ---")
+            except Exception as e:
+                logger.warning(f"--- Error loading results for run {run_idx + 1}: {e}. Re-running experiment. ---")
 
         logger.info(f"--- Stability Run {run_idx + 1}/{stability_runs} (Seed: {current_seed}) ---")
         set_seed(current_seed)

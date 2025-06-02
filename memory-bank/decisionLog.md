@@ -499,6 +499,21 @@ To maintain consistent model behavior and training stability, specific default v
 **Rationale:**
 在`run_evaluation_alpha.py`中，固定alpha模型（PatchTST_Alpha02、PatchTST_Alpha04等）的评估结果与其他模型（Teacher、TaskOnly、Follower、RDT）相差几个数量级。经过分析，发现问题在于创建固定alpha模型的配置对象`current_fixed_alpha_config`时，没有设置`N_FEATURES`属性，导致在`src/evaluator.py`的`_inverse_transform_target_cols`函数中无法正确执行反归一化操作。当反归一化失败时，评估函数会使用归一化后的数据计算指标，这就是为什么固定alpha模型的MSE和MAE值非常小。
 
+---
+### Decision (Code)
+[2025-06-02 16:07:00] - 修复 `run_evaluation_experiments.py` 中的 `KeyError: 'experiment_type'` 错误
+
+**Rationale:**
+当 `run_evaluation_experiments.py` 脚本中的实验运行被跳过（因为 `run_completed.txt` 标记文件存在）时，相应的实验结果并没有被加载到 `all_experiment_results` 和 `all_experiment_similarity_results` 列表中。这导致在 `main` 函数中创建 `current_combo_results_df` 和 `current_combo_sim_df` 时，这些 DataFrame 可能是空的或者缺少 `experiment_type` 等关键列，从而在 `plot_noise_evaluation` 和 `plot_smoothing_evaluation` 函数中尝试访问这些列时引发 `KeyError`。为了确保即使实验被跳过，其结果也能被正确地用于后续的绘图和汇总，需要在跳过逻辑中加入加载已保存结果的步骤。
+
+**Details:**
+- **[`run_evaluation_experiments.py`](run_evaluation_experiments.py)**:
+    - 在 `run_experiment` 函数中，修改了处理 `completion_marker_file` 存在的逻辑。
+    - 当检测到 `run_completed.txt` 文件时，不再直接跳过，而是尝试从 `experiment_results_dir` 中加载之前保存的 `run_metrics.json` 和 `run_similarity.json` 文件。
+    - 加载的数据将与 `run_metadata` 合并，并添加到 `all_run_results` 和 `all_similarity_results` 列表中。
+    - 如果结果文件丢失，将记录警告并继续执行实验，而不是跳过。
+    - 这确保了 `all_experiment_results` 和 `all_experiment_similarity_results` 始终包含所有已完成（包括跳过）的实验数据，从而避免了 `KeyError`。
+
 **Details:**
 - 在`run_evaluation_alpha.py`文件中，修改了创建固定alpha模型配置对象的代码，添加了`current_fixed_alpha_config.N_FEATURES = config.N_FEATURES`，确保为固定alpha模型的配置对象设置正确的`N_FEATURES`值。
 - 这样可以确保在`src/evaluator.py`的`_inverse_transform_target_cols`函数中能够正确执行反归一化操作，使得固定alpha模型的评估结果与其他模型在相同数量级上。

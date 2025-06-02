@@ -253,7 +253,7 @@ def run_experiment(
         )
         plot_save_dir = os.path.join(config.PLOTS_DIR, teacher_model_name.lower().replace(" ", "_"))
         utils.plot_training_metrics(teacher_history, plot_save_dir, teacher_model_name)
-        utils.plot_weights_biases_distribution(teacher_model, plot_save_dir, teacher_model_name)
+        # utils.plot_weights_biases_distribution(teacher_model, plot_save_dir, teacher_model_name) # 默认不绘制
         for metric, value in teacher_metrics.items():
             results[f'Teacher_{metric}'] = value
             
@@ -305,7 +305,7 @@ def run_experiment(
         )
         plot_save_dir = os.path.join(config.PLOTS_DIR, f"{student_model_name}_taskonly".lower().replace(" ", "_"))
         utils.plot_training_metrics(task_only_history, plot_save_dir, f"{student_model_name}_TaskOnly")
-        utils.plot_weights_biases_distribution(task_only_model, plot_save_dir, f"{student_model_name}_TaskOnly")
+        # utils.plot_weights_biases_distribution(task_only_model, plot_save_dir, f"{student_model_name}_TaskOnly") # 默认不绘制
         for metric, value in task_only_metrics.items():
             results[f'TaskOnly_{metric}'] = value
             
@@ -359,7 +359,7 @@ def run_experiment(
         )
         plot_save_dir = os.path.join(config.PLOTS_DIR, f"{student_model_name}_follower".lower().replace(" ", "_"))
         utils.plot_training_metrics(follower_history, plot_save_dir, f"{student_model_name}_Follower")
-        utils.plot_weights_biases_distribution(follower_model, plot_save_dir, f"{student_model_name}_Follower")
+        # utils.plot_weights_biases_distribution(follower_model, plot_save_dir, f"{student_model_name}_Follower") # 默认不绘制
         for metric, value in follower_metrics.items():
             results[f'Follower_{metric}'] = value
             
@@ -413,7 +413,7 @@ def run_experiment(
         )
         plot_save_dir = os.path.join(config.PLOTS_DIR, f"{student_model_name}_rdt".lower().replace(" ", "_"))
         utils.plot_training_metrics(rdt_history, plot_save_dir, f"{student_model_name}_RDT")
-        utils.plot_weights_biases_distribution(rdt_model, plot_save_dir, f"{student_model_name}_RDT")
+        # utils.plot_weights_biases_distribution(rdt_model, plot_save_dir, f"{student_model_name}_RDT") # 默认不绘制
         for metric, value in rdt_metrics.items():
             results[f'RDT_{metric}'] = value
             
@@ -526,7 +526,7 @@ def run_experiment(
             )
             plot_save_dir = os.path.join(current_fixed_alpha_config.PLOTS_DIR, model_name_fixed_alpha.lower().replace(" ", "_"))
             utils.plot_training_metrics(fixed_alpha_history, plot_save_dir, model_name_fixed_alpha)
-            utils.plot_weights_biases_distribution(fixed_alpha_model, plot_save_dir, model_name_fixed_alpha)
+            # utils.plot_weights_biases_distribution(fixed_alpha_model, plot_save_dir, model_name_fixed_alpha) # 默认不绘制
             for metric, value in fixed_alpha_metrics.items():
                 results[f'{model_name_fixed_alpha}_{metric}'] = value
                 
@@ -770,10 +770,10 @@ def main():
                     current_combo_results_df = pd.DataFrame(all_experiment_results)
                     current_combo_sim_df = pd.DataFrame(all_experiment_similarity_results)
 
-                    plot_noise_evaluation(current_combo_results_df, current_combo_sim_df, current_base_output_dir, logger)
-                    plot_smoothing_evaluation(current_combo_results_df, current_combo_sim_df, current_base_output_dir, logger)
-                    # 新增：绘制固定 Alpha 值的评估结果
-                    plot_fixed_alpha_evaluation(current_combo_results_df, current_combo_sim_df, current_base_output_dir, logger)
+                    # plot_noise_evaluation(current_combo_results_df, current_combo_sim_df, current_base_output_dir, logger) # 默认不绘制
+                    # plot_smoothing_evaluation(current_combo_results_df, current_combo_sim_df, current_base_output_dir, logger) # 默认不绘制
+                    # # 新增：绘制固定 Alpha 值的评估结果
+                    # plot_fixed_alpha_evaluation(current_combo_results_df, current_combo_sim_df, current_base_output_dir, logger) # 默认不绘制
 
                     logger.info(f"Visualizations generated for {current_experiment_combination_dir}.")
 

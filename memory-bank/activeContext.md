@@ -107,3 +107,4 @@ This file tracks the project's current status, including recent changes, current
 * 如何在 `data_handler.py` 中实现噪音注入和数据平滑处理，同时保持模块化和可配置性？
 * 如何在 `evaluator.py` 中集成新的评估指标和比较逻辑？
 * 如何在 `trainer.py` 中传递验证集信息给 `alpha_scheduler`？
+* [2025-06-02 16:07:00] - 修复 `run_evaluation_experiments.py` 中的 `KeyError: 'experiment_type'` 错误。
