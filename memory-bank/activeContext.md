@@ -108,3 +108,8 @@ This file tracks the project's current status, including recent changes, current
 * 如何在 `evaluator.py` 中集成新的评估指标和比较逻辑？
 * 如何在 `trainer.py` 中传递验证集信息给 `alpha_scheduler`？
 * [2025-06-02 16:07:00] - 修复 `run_evaluation_experiments.py` 中的 `KeyError: 'experiment_type'` 错误。
+* [2025-06-03 16:32:41] - 修改 `run_custom_experiment.py` 文件，将训练模型部分的代码修改为 `trained_model, _ = trainer.train()`，并将评估模型部分的代码修改为直接使用 `trained_model`，移除了冗余的 `load_state_dict` 和 `model.to(config.DEVICE)`。
+* [2025-06-03 16:34:24] - 修复 `run_custom_experiment.py` 中 `plot_weights_biases_distribution` 函数调用时 `best_model` 未定义的错误，将其修改为 `trained_model`。
+* [2025-06-03 16:51:22] - Created new evaluation script: [`run_evaluation_no_plots.py`](run_evaluation_no_plots.py). This script is a version of [`run_quick_test_evaluation.py`](run_quick_test_evaluation.py:1) with all plotting functionalities removed.
+* [2025-06-03 16:58:18] - Modified [`run_evaluation_no_plots.py`](run_evaluation_no_plots.py) to correctly handle cases where `teacher_model_name` is `None`. This includes skipping teacher-dependent models (Follower, RDT) and training TaskOnly as a standard student model.
+* [2025-06-03 17:07:15] - 修改了 [`src/models.py`](src/models.py:1) 中的 `MLPModel` ([`src/models.py:185`](src/models.py:185)), `RNNModel` ([`src/models.py:213`](src/models.py:213)), 和 `LSTMModel` ([`src/models.py:246`](src/models.py:246)) 的 `forward` 方法，通过在输入中包含 `X_df` (如果存在) 来解决 `RuntimeError: input.size(-1) must be equal to input_size` 的问题。

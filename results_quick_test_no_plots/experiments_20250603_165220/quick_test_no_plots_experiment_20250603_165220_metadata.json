@@ -1,0 +1,154 @@
+{
+    "ALPHA_END": 0.7,
+    "ALPHA_SCHEDULE": "linear",
+    "ALPHA_START": 0.3,
+    "AUTOFORMER_CONFIG": {
+        "input_size": 192,
+        "h": 24,
+        "hidden_size": 64,
+        "n_head": 8,
+        "encoder_layers": 2,
+        "decoder_layers": 1,
+        "d_ff": 256,
+        "moving_avg": 25,
+        "dropout": 0.05,
+        "activation": "gelu"
+    },
+    "BATCH_SIZE": 32,
+    "CONSTANT_ALPHA": 0.5,
+    "DATASET_PATH": "D:\\OneDrive\\Project\\Reverse_Distill_Training\\data\\national_illness.csv",
+    "DATASET_TIME_FREQ_MAP": {
+        "ETTh1.csv": "h",
+        "ETTh2.csv": "h",
+        "ETTm1.csv": "min",
+        "ETTm2.csv": "min",
+        "exchange_rate.csv": "d",
+        "national_illness.csv": "w",
+        "weather.csv": "min",
+        "data/ETT-small/ETTh1.csv": "h",
+        "data/ETT-small/ETTh2.csv": "h",
+        "data/ETT-small/ETTm1.csv": "min",
+        "data/ETT-small/ETTm2.csv": "min",
+        "PEMS_0.csv": "min"
+    },
+    "DATA_DIR": "D:\\OneDrive\\Project\\Reverse_Distill_Training\\data",
+    "DATE_COL": "date",
+    "DEVICE": "cuda",
+    "EPOCHS": 3,
+    "EXOGENOUS_COLS": [],
+    "EXPERIMENT_NAME": "RDT_PatchTST_vs_DLinear_h24",
+    "FEDFORMER_CONFIG": {
+        "input_size": 192,
+        "h": 24,
+        "hidden_size": 64,
+        "n_head": 8,
+        "encoder_layers": 2,
+        "decoder_layers": 1,
+        "d_ff": 256,
+        "moving_avg": 25,
+        "dropout": 0.05,
+        "activation": "gelu"
+    },
+    "INFORMER_CONFIG": {
+        "input_size": 192,
+        "h": 24,
+        "hidden_size": 64,
+        "n_head": 8,
+        "encoder_layers": 2,
+        "decoder_layers": 1,
+        "d_ff": 256,
+        "dropout": 0.05,
+        "activation": "gelu"
+    },
+    "LEARNING_RATE": 0.001,
+    "LOG_DIR": "D:\\OneDrive\\Project\\Reverse_Distill_Training\\log",
+    "LOG_FILE_NAME": "RDT_PatchTST_vs_DLinear_h24_national_illness.log",
+    "LOG_LEVEL": "INFO",
+    "LOOKBACK_WINDOW": 192,
+    "LOSS_FN": "MSE",
+    "LSTM_CONFIG": {
+        "lookback": 192,
+        "h": 24,
+        "hidden_size": 128,
+        "num_layers": 2,
+        "dropout": 0.1
+    },
+    "METRICS": [
+        "mae",
+        "mse"
+    ],
+    "MLP_CONFIG": {
+        "input_size": 192,
+        "h": 24,
+        "hidden_size": 512,
+        "num_layers": 2,
+        "activation": "relu",
+        "dropout": 0.1
+    },
+    "NLINEAR_CONFIG": {
+        "input_size": 192,
+        "h": 24
+    },
+    "NOISE_TYPE": "gaussian",
+    "NUM_WORKERS": 0,
+    "N_FEATURES": null,
+    "OPTIMIZER": "Adam",
+    "PATIENCE": 50,
+    "PLOTS_DIR": "D:\\OneDrive\\Project\\Reverse_Distill_Training\\results\\plots",
+    "PREDICTION_HORIZON": 24,
+    "RESULTS_DIR": "D:\\OneDrive\\Project\\Reverse_Distill_Training\\results",
+    "RNN_CONFIG": {
+        "lookback": 192,
+        "h": 24,
+        "hidden_size": 128,
+        "num_layers": 2,
+        "dropout": 0.1
+    },
+    "ROBUSTNESS_NOISE_LEVELS": [
+        0.05
+    ],
+    "SEED": 42,
+    "SIMILARITY_METRIC": "cosine_similarity",
+    "SMOOTHING_APPLY_TEST": false,
+    "SMOOTHING_APPLY_TRAIN": false,
+    "SMOOTHING_APPLY_VAL": false,
+    "SMOOTHING_FACTOR": 0.5,
+    "SMOOTHING_FACTORS": [
+        0.1
+    ],
+    "SMOOTHING_METHOD": "none",
+    "SMOOTHING_WEIGHT_SMOOTHING": 0.0,
+    "STABILITY_RUNS": 1,
+    "STUDENT_CONFIG": {
+        "input_size": 192,
+        "h": 24,
+        "patch_len": 16,
+        "stride": 8,
+        "n_layers": 3,
+        "n_heads": 4,
+        "hidden_size": 32,
+        "ff_hidden_size": 64,
+        "revin": true,
+        "dropout": 0.3,
+        "head_dropout": 0.0
+    },
+    "STUDENT_MODEL_NAME": "PatchTST",
+    "TARGET_COLS": [
+        "OT"
+    ],
+    "TEACHER_CONFIG": {
+        "input_size": 192,
+        "h": 24,
+        "hidden_size": 64,
+        "moving_avg_window": 25
+    },
+    "TEACHER_MODEL_NAME": "DLinear",
+    "TEST_SPLIT_RATIO": 0.2,
+    "TIME_ENCODING_TYPE": "linear",
+    "TIME_FREQ": "h",
+    "TRAIN_NOISE_INJECTION_LEVEL": 0.0,
+    "USE_AMP": true,
+    "VAL_NOISE_INJECTION_LEVEL": 0.0,
+    "VAL_SPLIT_RATIO": 0.2,
+    "WEIGHT_DECAY": 1e-05
+}

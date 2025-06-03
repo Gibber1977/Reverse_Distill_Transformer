@@ -184,9 +184,20 @@ class MLPModel(nn.Module):
         self.model = nn.Sequential(*layers)
     def forward(self, input_dict):
         # Extract input tensor from dictionary
-        x = input_dict['insample_y'] # Shape: [batch_size, lookback_window, n_series]
+        insample_y = input_dict['insample_y'] # Shape: [batch_size, lookback_window, n_target_series]
+        X_df = input_dict.get('X_df')
+
+        if X_df is not None and X_df.shape[-1] > 0:
+            # Assuming X_df has shape [batch_size, lookback_window, n_exog_features]
+            # And insample_y has shape [batch_size, lookback_window, n_target_features]
+            # The model's n_series was initialized with total features.
+            x_combined = torch.cat((insample_y, X_df), dim=-1)
+        else:
+            x_combined = insample_y
+        
+        x = x_combined # x now has shape [batch_size, lookback_window, self.n_series (total features)]
         batch_size = x.shape[0]
-        # Flatten input: [batch_size, lookback_window * n_series]
+        # Flatten input: [batch_size, lookback_window * self.n_series]
         x = x.reshape(batch_size, -1)
         # Pass through MLP
         out = self.model(x) # Output shape: [batch_size, h * n_series]
@@ -212,7 +223,15 @@ class RNNModel(nn.Module):
         self.fc = nn.Linear(hidden_size, h * output_size)
     def forward(self, input_dict):
         # Extract input tensor from dictionary
-        x = input_dict['insample_y'] # Shape: [batch_size, lookback_window, n_series]
+        insample_y = input_dict['insample_y'] # Shape: [batch_size, lookback_window, n_target_series]
+        X_df = input_dict.get('X_df')
+
+        if X_df is not None and X_df.shape[-1] > 0:
+            x_combined = torch.cat((insample_y, X_df), dim=-1)
+        else:
+            x_combined = insample_y
+        
+        x = x_combined # x now has shape [batch_size, lookback_window, self.n_series (total features)]
         # nn.RNN expects [batch, seq_len, input_size] which matches if batch_first=True
         batch_size = x.shape[0]
         # Pass through RNN
@@ -245,7 +264,15 @@ class LSTMModel(nn.Module):
         self.fc = nn.Linear(hidden_size, h * output_size)
     def forward(self, input_dict):
         # Extract input tensor from dictionary
-        x = input_dict['insample_y'] # Shape: [batch_size, lookback_window, n_series]
+        insample_y = input_dict['insample_y'] # Shape: [batch_size, lookback_window, n_target_series]
+        X_df = input_dict.get('X_df')
+
+        if X_df is not None and X_df.shape[-1] > 0:
+            x_combined = torch.cat((insample_y, X_df), dim=-1)
+        else:
+            x_combined = insample_y
+
+        x = x_combined # x now has shape [batch_size, lookback_window, self.n_series (total features)]
         # nn.LSTM expects [batch, seq_len, input_size] which matches if batch_first=True
         batch_size = x.shape[0]
         # Pass through LSTM

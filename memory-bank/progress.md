@@ -110,3 +110,10 @@ This file tracks the project's progress using a task list format.
 * [2025-05-31 13:10:00] - 修复了 `run_evaluation_alpha.py` 中固定alpha模型未进行数据反归一化处理的问题。问题根源在于创建固定alpha模型的配置对象时，没有设置 `N_FEATURES` 属性，导致反归一化失败，使用归一化后的数据计算指标。通过添加 `current_fixed_alpha_config.N_FEATURES = config.N_FEATURES` 解决了这个问题。
 * [2025-05-31 13:14:00] - 修复了 `run_evaluation_alpha.py` 中的 `KeyError: 'dataset'` 错误。问题出在 `plot_fixed_alpha_evaluation` 函数中，当尝试访问 `fixed_alpha_sim_df` 的 'dataset' 列时。通过添加额外的检查，确保在尝试访问列之前，检查数据框是否为空或是否有必要的列，避免了程序崩溃。
 * [2025-06-02 16:07:00] - 修复 `run_evaluation_experiments.py` 中的 `KeyError: 'experiment_type'` 错误。
+* [2025-06-03 16:22:35] - 完成创建 `run_custom_experiment.py` 脚本，实现了多模型和多预测窗口的实验循环，并集成了数据加载、模型训练、评估和结果保存功能。
+* [2025-06-03 16:28:40] - 完成修改 `run_custom_experiment.py` 文件，将 `setup_logging` 函数的调用参数从 `config` 修改为 `config.LOG_FILE_PATH` 和 `config.LOG_LEVEL`。
+* [2025-06-03 16:32:48] - 完成修改 `run_custom_experiment.py` 文件，将训练模型部分的代码修改为 `trained_model, _ = trainer.train()`，并将评估模型部分的代码修改为直接使用 `trained_model`，移除了冗余的 `load_state_dict` 和 `model.to(config.DEVICE)`。
+* [2025-06-03 16:34:34] - 完成修复 `run_custom_experiment.py` 中 `plot_weights_biases_distribution` 函数调用时 `best_model` 未定义的错误，将其修改为 `trained_model`。
+* [2025-06-03 16:51:16] - Completed: Created `run_evaluation_no_plots.py` script by removing plotting functionality from `run_quick_test_evaluation.py`.
+* [2025-06-03 16:59:16] - Completed: Modified [`run_evaluation_no_plots.py`](run_evaluation_no_plots.py) to correctly handle `teacher_model_name = None` scenarios.
+* [2025-06-03 17:07:24] - 完成对 [`src/models.py`](src/models.py:1) 中 `MLPModel` ([`src/models.py:185`](src/models.py:185)), `RNNModel` ([`src/models.py:213`](src/models.py:213)), 和 `LSTMModel` ([`src/models.py:246`](src/models.py:246)) `forward` 方法的修改，以解决输入维度不匹配问题。

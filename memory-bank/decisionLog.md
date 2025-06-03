@@ -499,6 +499,10 @@ To maintain consistent model behavior and training stability, specific default v
 **Rationale:**
 在`run_evaluation_alpha.py`中，固定alpha模型（PatchTST_Alpha02、PatchTST_Alpha04等）的评估结果与其他模型（Teacher、TaskOnly、Follower、RDT）相差几个数量级。经过分析，发现问题在于创建固定alpha模型的配置对象`current_fixed_alpha_config`时，没有设置`N_FEATURES`属性，导致在`src/evaluator.py`的`_inverse_transform_target_cols`函数中无法正确执行反归一化操作。当反归一化失败时，评估函数会使用归一化后的数据计算指标，这就是为什么固定alpha模型的MSE和MAE值非常小。
 
+**Details:**
+- 在`run_evaluation_alpha.py`文件中，修改了创建固定alpha模型配置对象的代码，添加了`current_fixed_alpha_config.N_FEATURES = config.N_FEATURES`，确保为固定alpha模型的配置对象设置正确的`N_FEATURES`值。
+- 这样可以确保在`src/evaluator.py`的`_inverse_transform_target_cols`函数中能够正确执行反归一化操作，使得固定alpha模型的评估结果与其他模型在相同数量级上。
+- 建议在`Config`类中添加一个`copy()`方法，用于复制配置对象，确保所有必要的属性都被正确复制，避免类似问题再次发生。
 ---
 ### Decision (Code)
 [2025-06-02 16:07:00] - 修复 `run_evaluation_experiments.py` 中的 `KeyError: 'experiment_type'` 错误
@@ -514,10 +518,6 @@ To maintain consistent model behavior and training stability, specific default v
     - 如果结果文件丢失，将记录警告并继续执行实验，而不是跳过。
     - 这确保了 `all_experiment_results` 和 `all_experiment_similarity_results` 始终包含所有已完成（包括跳过）的实验数据，从而避免了 `KeyError`。
 
-**Details:**
-- 在`run_evaluation_alpha.py`文件中，修改了创建固定alpha模型配置对象的代码，添加了`current_fixed_alpha_config.N_FEATURES = config.N_FEATURES`，确保为固定alpha模型的配置对象设置正确的`N_FEATURES`值。
-- 这样可以确保在`src/evaluator.py`的`_inverse_transform_target_cols`函数中能够正确执行反归一化操作，使得固定alpha模型的评估结果与其他模型在相同数量级上。
-- 建议在`Config`类中添加一个`copy()`方法，用于复制配置对象，确保所有必要的属性都被正确复制，避免类似问题再次发生。
 ---
 ### Decision (Debug)
 [2025-05-31 13:13:00] - 修复`run_evaluation_alpha.py`中的`KeyError: 'dataset'`错误
@@ -536,3 +536,61 @@ else:
 ```
 - 这样，即使`fixed_alpha_sim_df`为空或缺少必要的列，程序也不会崩溃，而是会创建一个空的`subset_sim_df`并继续执行。
 - 函数中已有对`subset_sim_df.empty`的检查，所以后续代码不会因为`subset_sim_df`为空而出错。
+---
+### Decision (Code)
+[2025-06-03 16:51:06] - Created new script `run_evaluation_no_plots.py` based on `run_quick_test_evaluation.py`
+
+**Rationale:**
+The user requested a version of the quick test evaluation script without any plotting functionalities. This allows for faster execution when visualizations are not needed and reduces dependencies.
+
+**Details:**
+- Removed `matplotlib.pyplot` and `seaborn` imports.
+- Removed code for creating "plots" directory.
+- Removed `plots_dir` parameter from `evaluate_model` calls.
+- Removed calls to `plot_noise_evaluation` and `plot_smoothing_evaluation` in `main`.
+- Removed definitions of `plot_noise_evaluation` and `plot_smoothing_evaluation` functions.
+- File: [`run_evaluation_no_plots.py`](run_evaluation_no_plots.py)
+
+---
+### Decision (Code)
+[2025-06-03 16:56:32] - Modified `run_evaluation_no_plots.py` to handle `teacher_model_name = None`
+
+**Rationale:**
+To allow experiments where no teacher model is specified. In such cases:
+- Teacher model training and evaluation are skipped.
+- TaskOnly model is trained as a standard student model using `StandardTrainer`.
+- Follower and RDT models (which depend on a teacher) are skipped.
+- Similarity metrics related to a teacher are not calculated or are set to `NaN`.
+
+**Details:**
+- **[`run_evaluation_no_plots.py`](run_evaluation_no_plots.py)**:
+    - Modified the `MODELS` list to include tuples like `(None, 'DLinear')` for testing standalone student models.
+    - In `run_experiment` function:
+        - Before teacher model training ([`run_evaluation_no_plots.py:144`](run_evaluation_no_plots.py:144) area):
+            - Checked if `teacher_model_name` is `None`.
+            - If `None`, `teacher_model` is set to `None`, `teacher_metrics` to `{}`, and `teacher_preds_original` to `None`. Teacher training/evaluation is skipped.
+            - Otherwise, existing teacher logic proceeds.
+        - For TaskOnly model ([`run_evaluation_no_plots.py:175`](run_evaluation_no_plots.py:175) area):
+            - If `teacher_model` (determined in the previous step) is `None`:
+                - Student model is trained using `StandardTrainer`.
+                - `evaluate_model` is called with `teacher_predictions_original=None`.
+            - Otherwise, existing TaskOnly RDT (alpha=1) logic proceeds.
+        - For Follower ([`run_evaluation_no_plots.py:209`](run_evaluation_no_plots.py:209) area) and RDT models ([`run_evaluation_no_plots.py:243`](run_evaluation_no_plots.py:243) area):
+            - Added a check: if `teacher_model` is `None`, skip training and evaluation of these models. Associated metrics are not added to results.
+        - Similarity results collection ([`run_evaluation_no_plots.py:276`](run_evaluation_no_plots.py:276) area):
+            - Ensured that if `teacher_model` is `None`, `teacher_preds_original` passed to `evaluate_model` for student models is `None`. `evaluate_model` already handles returning `NaN` for similarity if its `teacher_predictions_original` input is `None`.
+            - Ensured `teacher_metrics` is empty if no teacher, so no teacher similarity is added.
+            - Ensured Follower/RDT metrics (including similarity) are not processed if these models were skipped.
+---
+### Decision (Code)
+[2025-06-03 17:07:00] - 修复 MLPModel, RNNModel, LSTMModel 的 forward 方法以解决 input.size(-1) 必须等于 input_size 的问题
+
+**Rationale:**
+这些模型的 `forward` 方法之前仅使用 `input_dict['insample_y']`，这只包含目标列。然而，模型初始化时期望的输入特征数是总特征数 (`n_features`)。当目标列数量小于总特征数时，会导致维度不匹配。修改方案通过在 `forward` 方法中检查 `X_df` (外生特征) 是否存在，如果存在则将其与 `insample_y` 拼接，以确保传递给底层神经网络模块的输入具有正确的总特征维度。
+
+**Details:**
+- **[`src/models.py`](src/models.py:1)**:
+    - 在 `MLPModel.forward` ([`src/models.py:185`](src/models.py:185)) 方法中，在 `x = x.reshape(batch_size, -1)` ([`src/models.py:190`](src/models.py:190)) 之前插入了拼接逻辑。
+    - 在 `RNNModel.forward` ([`src/models.py:213`](src/models.py:213)) 方法中，在 `output, hidden = self.rnn(x)` ([`src/models.py:221`](src/models.py:221)) 之前插入了拼接逻辑。
+    - 在 `LSTMModel.forward` ([`src/models.py:246`](src/models.py:246)) 方法中，在 `output, (hidden, cell) = self.lstm(x)` ([`src/models.py:256`](src/models.py:256)) 之前插入了拼接逻辑。
+    - 拼接逻辑检查 `input_dict.get('X_df')`，如果 `X_df` 有效，则 `torch.cat((insample_y, X_df), dim=-1)`。
