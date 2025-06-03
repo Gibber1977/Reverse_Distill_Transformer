@@ -211,44 +211,84 @@ def evaluate_model(model, dataloader, device, scaler, config_obj, logger, model_
     logger.info(f"\n--- Evaluating {model_name} on {dataset_type} ---")
     true_values_scaled, predictions_scaled = predict(model, dataloader, device, config_obj) # 传递 config_obj
 
-    # --- 逆变换回原始尺度 ---
-    n_samples, horizon, n_scaled_features = predictions_scaled.shape # n_scaled_features is len(TARGET_COLS)
+    # --- Ensure predictions_scaled only contains target columns ---
+    num_target_cols = len(config_obj.TARGET_COLS)
     
+    if predictions_scaled.shape[-1] > num_target_cols:
+        logger.warning(
+            f"Model '{model_name}' output {predictions_scaled.shape[-1]} features, "
+            f"but TARGET_COLS has {num_target_cols}. "
+            f"Assuming target predictions are the first {num_target_cols} features."
+        )
+        predictions_scaled = predictions_scaled[:, :, :num_target_cols]
+    elif predictions_scaled.shape[-1] < num_target_cols:
+        logger.error(
+            f"Model '{model_name}' output {predictions_scaled.shape[-1]} features, "
+            f"which is less than the number of TARGET_COLS ({num_target_cols}). "
+            f"Evaluation might be incorrect."
+        )
+    
+    # Now predictions_scaled should have shape [batch, horizon, num_target_cols]
+    # And true_values_scaled also has shape [batch, horizon, num_target_cols] (already asserted by predict function)
+
+    # --- 逆变换回原始尺度 ---
+    # n_samples, horizon, n_scaled_features = predictions_scaled.shape # n_scaled_features is len(TARGET_COLS)
+    # The above line for n_scaled_features should now correctly reflect num_target_cols
+    # Or, more robustly:
+    n_samples = predictions_scaled.shape[0]
+    horizon = predictions_scaled.shape[1]
+    n_features_to_evaluate = predictions_scaled.shape[-1] # This should be num_target_cols
+
     # Helper function for inverse transform
-    def _inverse_transform_target_cols(scaled_data, scaler_obj, config):
-        # scaled_data shape: (num_samples * horizon, len(TARGET_COLS))
+    def _inverse_transform_target_cols(scaled_data, scaler_obj, config_for_inverse, current_n_features_to_evaluate):
+        # scaled_data shape: (num_samples * horizon, current_n_features_to_evaluate)
         # scaler_obj was fit on N_FEATURES
-        dummy_data_for_inverse = np.zeros((scaled_data.shape[0], config.N_FEATURES))
-        dummy_data_for_inverse[:, :len(config.TARGET_COLS)] = scaled_data
-        original_all_features = scaler_obj.inverse_transform(dummy_data_for_inverse)
-        original_target_cols = original_all_features[:, :len(config.TARGET_COLS)]
+        # Ensure config_for_inverse.N_FEATURES is available
+        if not hasattr(config_for_inverse, 'N_FEATURES') or config_for_inverse.N_FEATURES is None:
+            logger.error("Config object does not have N_FEATURES attribute or it's None. Inverse transform might be incorrect.")
+            # Fallback or raise error, here we assume scaled_data is already in original scale or cannot be transformed
+            return scaled_data # Or handle error more gracefully
+
+        dummy_data_for_inverse = np.zeros((scaled_data.shape[0], config_for_inverse.N_FEATURES))
+        
+        # Place the target columns into the dummy array at the correct positions
+        # This assumes TARGET_COLS are the first columns in the original N_FEATURES scaling.
+        # If TARGET_COLS can be arbitrary columns, this logic needs to be more complex
+        # using indices from config_for_inverse.TARGET_COLS_IDX if available.
+        # For now, assume TARGET_COLS are the first current_n_features_to_evaluate columns.
+        if current_n_features_to_evaluate > config_for_inverse.N_FEATURES:
+            logger.warning(f"Number of features to evaluate ({current_n_features_to_evaluate}) is greater than N_FEATURES ({config_for_inverse.N_FEATURES}). Clipping.")
+            dummy_data_for_inverse[:, :config_for_inverse.N_FEATURES] = scaled_data[:, :config_for_inverse.N_FEATURES]
+            original_all_features = scaler_obj.inverse_transform(dummy_data_for_inverse)
+            original_target_cols = original_all_features[:, :config_for_inverse.N_FEATURES] # Return all N_FEATURES if clipped
+        else:
+            dummy_data_for_inverse[:, :current_n_features_to_evaluate] = scaled_data
+            original_all_features = scaler_obj.inverse_transform(dummy_data_for_inverse)
+            original_target_cols = original_all_features[:, :current_n_features_to_evaluate]
         return original_target_cols
 
     try:
-        # Reshape predictions_scaled to (num_samples * horizon, len(TARGET_COLS))
-        predictions_reshaped_scaled = predictions_scaled.view(-1, n_scaled_features).cpu().numpy()
-        predictions_original = _inverse_transform_target_cols(predictions_reshaped_scaled, scaler, config_obj)
+        # Reshape predictions_scaled to (num_samples * horizon, n_features_to_evaluate)
+        predictions_reshaped_scaled = predictions_scaled.reshape(-1, n_features_to_evaluate).cpu().numpy()
+        predictions_original = _inverse_transform_target_cols(predictions_reshaped_scaled, scaler, config_obj, n_features_to_evaluate)
 
-        # Reshape true_values_scaled to (num_samples * horizon, len(TARGET_COLS))
-        true_values_reshaped_scaled = true_values_scaled.view(-1, n_scaled_features).cpu().numpy()
-        true_values_original = _inverse_transform_target_cols(true_values_reshaped_scaled, scaler, config_obj)
-
+        # true_values_scaled already has num_target_cols features
+        true_values_n_features = true_values_scaled.shape[-1]
+        true_values_reshaped_scaled = true_values_scaled.reshape(-1, true_values_n_features).cpu().numpy()
+        true_values_original = _inverse_transform_target_cols(true_values_reshaped_scaled, scaler, config_obj, true_values_n_features)
+        
     except Exception as e:
         logger.error(f"Error during inverse transform: {e}")
         logger.warning("Using scaled values for metric calculation.")
         # Fallback to scaled values if inverse transform fails
-        predictions_original = predictions_scaled.view(-1, n_scaled_features).cpu().numpy()
-        true_values_original = true_values_scaled.view(-1, n_scaled_features).cpu().numpy()
+        predictions_original = predictions_scaled.reshape(-1, n_features_to_evaluate).cpu().numpy()
+        true_values_original = true_values_scaled.reshape(-1, true_values_scaled.shape[-1]).cpu().numpy() # Use its own feature count
 
-    # 重塑回 [batch, horizon, len(TARGET_COLS)]
-    n_features_to_reshape = len(config_obj.TARGET_COLS)
-    predictions_original = predictions_original.reshape(n_samples, horizon, n_features_to_reshape)
-    true_values_original = true_values_original.reshape(n_samples, horizon, n_features_to_reshape)
+    # 重塑回 [batch, horizon, n_features_to_evaluate] for predictions
+    # and [batch, horizon, true_values_n_features] for true_values
+    predictions_original = predictions_original.reshape(n_samples, horizon, n_features_to_evaluate)
+    true_values_original = true_values_original.reshape(n_samples, horizon, true_values_scaled.shape[-1])
 
-    # At this point, true_values_original and predictions_original already contain only TARGET_COLS
-    # So, the explicit slicing below is redundant but harmless.
-    # true_values_original = true_values_original[:, :, :len(config_obj.TARGET_COLS)]
-    # predictions_original = predictions_original[:, :, :len(config_obj.TARGET_COLS)]
 
     # --- 计算指标 ---
     metrics = calculate_metrics(true_values_original, predictions_original, config_obj.METRICS)

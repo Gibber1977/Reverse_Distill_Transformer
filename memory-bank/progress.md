@@ -11,20 +11,6 @@ This file tracks the project's progress using a task list format.
 * 完成了RDT训练器实现，包括复合损失计算和Alpha调度
 * 实现了数据加载和预处理流程，支持多种时间序列数据集
 * 构建了评估框架，支持模型性能和鲁棒性测试
-
-## Current Tasks
-
-* 初始化Memory Bank以记录项目架构和设计决策
-* 分析现有代码库的架构和组件关系
-* 理解RDT方法的核心实现细节
-
-## Next Steps
-
-* 探索更多Alpha调度策略的实现
-* 考虑集成更多种类的时间序列模型作为教师或学生
-* 优化数据预处理流程，特别是针对不同类型的时间序列数据
-* 增强可视化能力，提供更直观的实验结果展示
-* 改进文档，添加更详细的使用说明和API参考
 * 2025-05-26 17:44:00 - 决定暂不实现模型结构图可视化，因为这需要额外的库依赖（如 `graphviz`）且集成到训练流程中较为复杂。建议用户如果需要，可以手动使用 `torchviz` 或 `netron` 等工具生成。
 * 2025-05-26 17:45:00 - 完成了详细的参数记录机制，包括实验元数据、模型架构参数、训练配置参数和数据处理参数的保存。
 * 2025-05-26 14:43:44 - 完成了 `src/evaluator.py` 中学生-教师相似度评估功能的实现。
@@ -32,8 +18,6 @@ This file tracks the project's progress using a task list format.
 * 2025-05-26 14:44:21 - 完成了 `src/trainer.py` 中 `RDT_Trainer` 在验证阶段收集预测结果并传递给 Alpha 调度器的实现。
 * 2025-05-26 14:44:21 - 完成了 `src/data_handler.py` 中噪音注入和数据平滑/合成逻辑的实现。
 * 2025-05-26 14:44:21 - 完成了 `src/config.py` 中噪音、平滑和相似度配置项的添加和修改。
-- 2025-05-26 下午2:45:18 - 开始编写新功能文档。
-- 2025-05-26 下午2:45:49 - 完成新功能文档 `docs/new_features.md` 的编写。
 * 2025-05-26 15:18:08 - 完成了训练过程中的输出日志增强和日志文件保存功能。
 * 2025-05-26 15:24:26 - 完成了 `run_evaluation_experiments.py` 脚本的编写，实现了全面的模型评估实验功能。
 * 2025-05-26 15:25:29 - 完成了 `run_quick_test_evaluation.py` 脚本的编写，用于快速验证代码和实验脚本的有效性。
@@ -117,3 +101,21 @@ This file tracks the project's progress using a task list format.
 * [2025-06-03 16:51:16] - Completed: Created `run_evaluation_no_plots.py` script by removing plotting functionality from `run_quick_test_evaluation.py`.
 * [2025-06-03 16:59:16] - Completed: Modified [`run_evaluation_no_plots.py`](run_evaluation_no_plots.py) to correctly handle `teacher_model_name = None` scenarios.
 * [2025-06-03 17:07:24] - 完成对 [`src/models.py`](src/models.py:1) 中 `MLPModel` ([`src/models.py:185`](src/models.py:185)), `RNNModel` ([`src/models.py:213`](src/models.py:213)), 和 `LSTMModel` ([`src/models.py:246`](src/models.py:246)) `forward` 方法的修改，以解决输入维度不匹配问题。
+* [2025-06-03 17:30:23] - 完成对 [`src/models.py`](src/models.py:1) 的修改，以确保自定义模型 (`MLPModel`, `RNNModel`, `LSTMModel`) 输出正确数量的特征 (即 `len(config.TARGET_COLS)`)。
+
+## Current Tasks
+
+* 初始化Memory Bank以记录项目架构和设计决策
+* 分析现有代码库的架构和组件关系
+* 理解RDT方法的核心实现细节
+
+## Next Steps
+
+* 探索更多Alpha调度策略的实现
+* 考虑集成更多种类的时间序列模型作为教师或学生
+* 优化数据预处理流程，特别是针对不同类型的时间序列数据
+* 增强可视化能力，提供更直观的实验结果展示
+* 改进文档，添加更详细的使用说明和API参考
+- 2025-05-26 下午2:45:18 - 开始编写新功能文档。
+- 2025-05-26 下午2:45:49 - 完成新功能文档 `docs/new_features.md` 的编写。
+* [2025-06-03 17:33:48] - 完成对 `src/evaluator.py` 中 `evaluate_model` 函数的修改，以正确处理模型输出特征数多于目标列的情况。

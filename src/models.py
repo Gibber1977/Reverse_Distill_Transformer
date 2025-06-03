@@ -78,7 +78,9 @@ def get_model(model_name, config_instance):
         model = NLinear(n_series=n_features, **cfg)
     elif model_name == 'MLP':
         # Custom MLP expects specific args from its __init__
-        model = MLPModel(input_size=lookback, h=horizon, n_series=n_features,
+        model = MLPModel(input_size=lookback, h=horizon,
+                         input_features_count=n_features,
+                         output_features_count=len(config_instance.TARGET_COLS),
                          hidden_size=cfg.get('hidden_size', 512),
                          num_layers=cfg.get('num_layers', 2),
                          activation=cfg.get('activation', 'relu'),
@@ -89,14 +91,14 @@ def get_model(model_name, config_instance):
                          hidden_size=cfg.get('hidden_size', 128),
                          num_layers=cfg.get('num_layers', 2),
                          dropout=cfg.get('dropout', 0.1),
-                         output_size=n_features)
+                         output_size=len(config_instance.TARGET_COLS))
     elif model_name == 'LSTM':
         # Custom LSTM expects specific args
         model = LSTMModel(n_series=n_features, lookback=lookback, h=horizon,
                           hidden_size=cfg.get('hidden_size', 128),
                           num_layers=cfg.get('num_layers', 2),
                           dropout=cfg.get('dropout', 0.1),
-                          output_size=n_features)
+                          output_size=len(config_instance.TARGET_COLS))
     elif model_name == 'Autoformer':
         # Ensure cfg has the correct input_size, h
         model = Autoformer(n_series=n_features, **cfg)
@@ -156,16 +158,17 @@ def get_model(model_name, config_instance):
 # --- Custom Model Implementations ---
 class MLPModel(nn.Module):
     """A simple Multi-Layer Perceptron (MLP) for time series forecasting."""
-    def __init__(self, input_size, h, n_series, hidden_size=512, num_layers=2, activation='relu', dropout=0.1):
+    def __init__(self, input_size, h, input_features_count, output_features_count, hidden_size=512, num_layers=2, activation='relu', dropout=0.1):
         super().__init__()
-        self.input_size = input_size
+        self.input_size = input_size # lookback
         self.h = h
-        self.n_series = n_series
+        self.input_features_count = input_features_count # n_features
+        self.output_features_count = output_features_count # len(TARGET_COLS)
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         layers = []
         # Input layer: flatten lookback window * features
-        layers.append(nn.Linear(input_size * n_series, hidden_size))
+        layers.append(nn.Linear(input_size * self.input_features_count, hidden_size))
         if activation == 'relu':
             layers.append(nn.ReLU())
         elif activation == 'tanh':
@@ -179,8 +182,8 @@ class MLPModel(nn.Module):
             elif activation == 'tanh':
                 layers.append(nn.Tanh())
             layers.append(nn.Dropout(dropout))
-        # Output layer: predict h steps * n_series features
-        layers.append(nn.Linear(hidden_size, h * n_series))
+        # Output layer: predict h steps * output_features_count features
+        layers.append(nn.Linear(hidden_size, h * self.output_features_count))
         self.model = nn.Sequential(*layers)
     def forward(self, input_dict):
         # Extract input tensor from dictionary
@@ -195,14 +198,14 @@ class MLPModel(nn.Module):
         else:
             x_combined = insample_y
         
-        x = x_combined # x now has shape [batch_size, lookback_window, self.n_series (total features)]
+        x = x_combined # x now has shape [batch_size, lookback_window, self.input_features_count (total features)]
         batch_size = x.shape[0]
-        # Flatten input: [batch_size, lookback_window * self.n_series]
+        # Flatten input: [batch_size, lookback_window * self.input_features_count]
         x = x.reshape(batch_size, -1)
         # Pass through MLP
-        out = self.model(x) # Output shape: [batch_size, h * n_series]
-        # Reshape output: [batch_size, h, n_series]
-        out = out.reshape(batch_size, self.h, self.n_series)
+        out = self.model(x) # Output shape: [batch_size, h * self.output_features_count]
+        # Reshape output: [batch_size, h, self.output_features_count]
+        out = out.reshape(batch_size, self.h, self.output_features_count)
         return out
 class RNNModel(nn.Module):
     """A simple RNN model for time series forecasting."""

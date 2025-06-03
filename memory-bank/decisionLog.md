@@ -322,7 +322,7 @@ To address dimensionality mismatches when using `scaler.inverse_transform`. The 
 To maintain consistent model behavior and training stability, specific default values for `dropout` (0.3) and `head_dropout` (0.0) are enforced for PatchTST models if not explicitly set in configurations. This aligns with common practices and provides sensible defaults.
 
 **Details:**
-- Modified [`src/models.py`](src/models.py:67) in the `get_model` function to default `dropout` to 0.3 and `head_dropout` to 0.0 for PatchTST if not specified in the configuration dictionary (`cfg`). A copy of `cfg` is used to avoid modifying the original.
+- Modified [`src/models.py`](src/models.py:67) in the `get_model` function to default `dropout` to 0.3 and `head_dropout` to 0.0 for PatchTST if not specified in the configuration dictionary (`cfg`). A copy of `cfg` is used to avoid modifying the original config dict directly.
 - Modified [`src/config.py`](src/config.py:40) to explicitly set `dropout: 0.3` and `head_dropout: 0.0` in the `STUDENT_CONFIG` (which defaults to PatchTST) for clarity and as a documented default.
 ---
 ### Decision (Code)
@@ -500,97 +500,56 @@ To maintain consistent model behavior and training stability, specific default v
 在`run_evaluation_alpha.py`中，固定alpha模型（PatchTST_Alpha02、PatchTST_Alpha04等）的评估结果与其他模型（Teacher、TaskOnly、Follower、RDT）相差几个数量级。经过分析，发现问题在于创建固定alpha模型的配置对象`current_fixed_alpha_config`时，没有设置`N_FEATURES`属性，导致在`src/evaluator.py`的`_inverse_transform_target_cols`函数中无法正确执行反归一化操作。当反归一化失败时，评估函数会使用归一化后的数据计算指标，这就是为什么固定alpha模型的MSE和MAE值非常小。
 
 **Details:**
-- 在`run_evaluation_alpha.py`文件中，修改了创建固定alpha模型配置对象的代码，添加了`current_fixed_alpha_config.N_FEATURES = config.N_FEATURES`，确保为固定alpha模型的配置对象设置正确的`N_FEATURES`值。
-- 这样可以确保在`src/evaluator.py`的`_inverse_transform_target_cols`函数中能够正确执行反归一化操作，使得固定alpha模型的评估结果与其他模型在相同数量级上。
-- 建议在`Config`类中添加一个`copy()`方法，用于复制配置对象，确保所有必要的属性都被正确复制，避免类似问题再次发生。
----
-### Decision (Code)
-[2025-06-02 16:07:00] - 修复 `run_evaluation_experiments.py` 中的 `KeyError: 'experiment_type'` 错误
-
-**Rationale:**
-当 `run_evaluation_experiments.py` 脚本中的实验运行被跳过（因为 `run_completed.txt` 标记文件存在）时，相应的实验结果并没有被加载到 `all_experiment_results` 和 `all_experiment_similarity_results` 列表中。这导致在 `main` 函数中创建 `current_combo_results_df` 和 `current_combo_sim_df` 时，这些 DataFrame 可能是空的或者缺少 `experiment_type` 等关键列，从而在 `plot_noise_evaluation` 和 `plot_smoothing_evaluation` 函数中尝试访问这些列时引发 `KeyError`。为了确保即使实验被跳过，其结果也能被正确地用于后续的绘图和汇总，需要在跳过逻辑中加入加载已保存结果的步骤。
-
-**Details:**
-- **[`run_evaluation_experiments.py`](run_evaluation_experiments.py)**:
-    - 在 `run_experiment` 函数中，修改了处理 `completion_marker_file` 存在的逻辑。
-    - 当检测到 `run_completed.txt` 文件时，不再直接跳过，而是尝试从 `experiment_results_dir` 中加载之前保存的 `run_metrics.json` 和 `run_similarity.json` 文件。
-    - 加载的数据将与 `run_metadata` 合并，并添加到 `all_run_results` 和 `all_similarity_results` 列表中。
-    - 如果结果文件丢失，将记录警告并继续执行实验，而不是跳过。
-    - 这确保了 `all_experiment_results` 和 `all_experiment_similarity_results` 始终包含所有已完成（包括跳过）的实验数据，从而避免了 `KeyError`。
-
+- **[`run_evaluation_alpha.py`](run_evaluation_alpha.py)**:
+    - 在创建 `current_fixed_alpha_config` 之后，添加 `current_fixed_alpha_config.N_FEATURES = config.N_FEATURES`。
 ---
 ### Decision (Debug)
-[2025-05-31 13:13:00] - 修复`run_evaluation_alpha.py`中的`KeyError: 'dataset'`错误
+[2025-05-31 13:14:00] - 修复 `run_evaluation_alpha.py` 中的 `KeyError: 'dataset'` 错误
 
 **Rationale:**
-在运行修复了反归一化问题的`run_evaluation_alpha.py`后，出现了新的错误：`KeyError: 'dataset'`。这个错误发生在`plot_fixed_alpha_evaluation`函数中，当尝试访问`fixed_alpha_sim_df`的'dataset'列时。问题原因是`fixed_alpha_sim_df`可能为空或缺少必要的列，导致在尝试过滤数据时出错。
+`run_evaluation_alpha.py` 脚本在 `plot_fixed_alpha_evaluation` 函数中尝试访问 `fixed_alpha_sim_df['dataset']` 时可能因 `fixed_alpha_sim_df` 为空或不包含 'dataset' 列而引发 `KeyError`。这通常发生在没有成功运行任何固定 Alpha 实验（例如，由于之前的配置问题或数据问题）导致 `fixed_alpha_sim_df` 未能正确填充时。
 
 **Details:**
-- 在`plot_fixed_alpha_evaluation`函数中添加了额外的检查，确保在尝试访问`fixed_alpha_sim_df`的列之前，检查它是否为空或是否有必要的列：
-```python
-if fixed_alpha_sim_df.empty or 'dataset' not in fixed_alpha_sim_df.columns or 'pred_horizon' not in fixed_alpha_sim_df.columns:
-    subset_sim_df = pd.DataFrame()  # 创建空DataFrame
-    logger.warning(f"Similarity DataFrame is empty or missing required columns for dataset={dataset}, horizon={horizon}")
-else:
-    subset_sim_df = fixed_alpha_sim_df[(fixed_alpha_sim_df['dataset'] == dataset) & (fixed_alpha_sim_df['pred_horizon'] == horizon)]
-```
-- 这样，即使`fixed_alpha_sim_df`为空或缺少必要的列，程序也不会崩溃，而是会创建一个空的`subset_sim_df`并继续执行。
-- 函数中已有对`subset_sim_df.empty`的检查，所以后续代码不会因为`subset_sim_df`为空而出错。
+- **[`run_evaluation_alpha.py`](run_evaluation_alpha.py)**:
+    - 在 `plot_fixed_alpha_evaluation` 函数中，在尝试访问 `fixed_alpha_sim_df['dataset']` 之前，添加了检查以确保 `fixed_alpha_sim_df` 不为空并且包含 'dataset' 列。
+    - 如果检查失败，则记录一条警告消息并跳过绘图，而不是让程序崩溃。
 ---
 ### Decision (Code)
-[2025-06-03 16:51:06] - Created new script `run_evaluation_no_plots.py` based on `run_quick_test_evaluation.py`
+[2025-06-03 17:27:44] - 修改自定义模型 (MLP, RNN, LSTM) 以输出正确数量的特征
 
 **Rationale:**
-The user requested a version of the quick test evaluation script without any plotting functionalities. This allows for faster execution when visualizations are not needed and reduces dependencies.
-
-**Details:**
-- Removed `matplotlib.pyplot` and `seaborn` imports.
-- Removed code for creating "plots" directory.
-- Removed `plots_dir` parameter from `evaluate_model` calls.
-- Removed calls to `plot_noise_evaluation` and `plot_smoothing_evaluation` in `main`.
-- Removed definitions of `plot_noise_evaluation` and `plot_smoothing_evaluation` functions.
-- File: [`run_evaluation_no_plots.py`](run_evaluation_no_plots.py)
-
----
-### Decision (Code)
-[2025-06-03 16:56:32] - Modified `run_evaluation_no_plots.py` to handle `teacher_model_name = None`
-
-**Rationale:**
-To allow experiments where no teacher model is specified. In such cases:
-- Teacher model training and evaluation are skipped.
-- TaskOnly model is trained as a standard student model using `StandardTrainer`.
-- Follower and RDT models (which depend on a teacher) are skipped.
-- Similarity metrics related to a teacher are not calculated or are set to `NaN`.
-
-**Details:**
-- **[`run_evaluation_no_plots.py`](run_evaluation_no_plots.py)**:
-    - Modified the `MODELS` list to include tuples like `(None, 'DLinear')` for testing standalone student models.
-    - In `run_experiment` function:
-        - Before teacher model training ([`run_evaluation_no_plots.py:144`](run_evaluation_no_plots.py:144) area):
-            - Checked if `teacher_model_name` is `None`.
-            - If `None`, `teacher_model` is set to `None`, `teacher_metrics` to `{}`, and `teacher_preds_original` to `None`. Teacher training/evaluation is skipped.
-            - Otherwise, existing teacher logic proceeds.
-        - For TaskOnly model ([`run_evaluation_no_plots.py:175`](run_evaluation_no_plots.py:175) area):
-            - If `teacher_model` (determined in the previous step) is `None`:
-                - Student model is trained using `StandardTrainer`.
-                - `evaluate_model` is called with `teacher_predictions_original=None`.
-            - Otherwise, existing TaskOnly RDT (alpha=1) logic proceeds.
-        - For Follower ([`run_evaluation_no_plots.py:209`](run_evaluation_no_plots.py:209) area) and RDT models ([`run_evaluation_no_plots.py:243`](run_evaluation_no_plots.py:243) area):
-            - Added a check: if `teacher_model` is `None`, skip training and evaluation of these models. Associated metrics are not added to results.
-        - Similarity results collection ([`run_evaluation_no_plots.py:276`](run_evaluation_no_plots.py:276) area):
-            - Ensured that if `teacher_model` is `None`, `teacher_preds_original` passed to `evaluate_model` for student models is `None`. `evaluate_model` already handles returning `NaN` for similarity if its `teacher_predictions_original` input is `None`.
-            - Ensured `teacher_metrics` is empty if no teacher, so no teacher similarity is added.
-            - Ensured Follower/RDT metrics (including similarity) are not processed if these models were skipped.
----
-### Decision (Code)
-[2025-06-03 17:07:00] - 修复 MLPModel, RNNModel, LSTMModel 的 forward 方法以解决 input.size(-1) 必须等于 input_size 的问题
-
-**Rationale:**
-这些模型的 `forward` 方法之前仅使用 `input_dict['insample_y']`，这只包含目标列。然而，模型初始化时期望的输入特征数是总特征数 (`n_features`)。当目标列数量小于总特征数时，会导致维度不匹配。修改方案通过在 `forward` 方法中检查 `X_df` (外生特征) 是否存在，如果存在则将其与 `insample_y` 拼接，以确保传递给底层神经网络模块的输入具有正确的总特征维度。
+确保自定义模型 (`MLPModel`, `RNNModel`, `LSTMModel`) 的输出维度与 `len(config.TARGET_COLS)` 一致，而不是输出所有输入特征 (`n_features`)。这对于后续的损失计算和评估至关重要，因为它们期望模型的输出只包含目标列。
 
 **Details:**
 - **[`src/models.py`](src/models.py:1)**:
-    - 在 `MLPModel.forward` ([`src/models.py:185`](src/models.py:185)) 方法中，在 `x = x.reshape(batch_size, -1)` ([`src/models.py:190`](src/models.py:190)) 之前插入了拼接逻辑。
-    - 在 `RNNModel.forward` ([`src/models.py:213`](src/models.py:213)) 方法中，在 `output, hidden = self.rnn(x)` ([`src/models.py:221`](src/models.py:221)) 之前插入了拼接逻辑。
-    - 在 `LSTMModel.forward` ([`src/models.py:246`](src/models.py:246)) 方法中，在 `output, (hidden, cell) = self.lstm(x)` ([`src/models.py:256`](src/models.py:256)) 之前插入了拼接逻辑。
-    - 拼接逻辑检查 `input_dict.get('X_df')`，如果 `X_df` 有效，则 `torch.cat((insample_y, X_df), dim=-1)`。
+    - **`MLPModel`**:
+        - `__init__` 方法签名修改为 `__init__(self, input_size, h, input_features_count, output_features_count, ...)`。
+        - `self.n_series` 重命名为 `self.input_features_count`。
+        - 新增 `self.output_features_count`。
+        - 输入层修改为 `nn.Linear(input_size * self.input_features_count, hidden_size)`。
+        - 输出层修改为 `nn.Linear(hidden_size, h * self.output_features_count)`。
+        - `forward` 方法中的最终 `reshape` 修改为 `out.reshape(batch_size, self.h, self.output_features_count)`。
+    - **`get_model` 函数中 `MLPModel` 的实例化**:
+        - 更新为 `MLPModel(..., input_features_count=n_features, output_features_count=len(config_instance.TARGET_COLS), ...)`。
+    - **`get_model` 函数中 `RNNModel` 和 `LSTMModel` 的实例化**:
+        - `output_size` 参数从 `n_features` 修改为 `len(config_instance.TARGET_COLS)`。
+        - `RNNModel` 和 `LSTMModel` 的 `__init__` 方法中的 `self.output_size` 已经用于定义全连接层的输出和最终的重塑，因此这些类内部不需要进一步修改，仅修改 `get_model` 中的调用即可。
+---
+### Decision (Code)
+[2025-06-03 17:33:56] - 修改 `evaluate_model` 以处理预测特征数与目标列数不一致的情况
+
+**Rationale:**
+`NeuralForecast` 库中的某些模型（如 `DLinear`, `PatchTST`）在以 `n_series=n_features` 初始化时，其 `predict` 方法可能会返回所有 `n_features` 的预测值。然而，评估和逆变换应该只针对 `TARGET_COLS` 中定义的目标列。此修改确保在预测结果的特征数量多于或少于目标列数量时，能够正确处理，并记录相应的日志信息。
+
+**Details:**
+- **[`src/evaluator.py`](src/evaluator.py:198)**:
+    - 在 `evaluate_model` 函数中，调用 `predict` 函数获得 `predictions_scaled` 后：
+        - 获取 `num_target_cols = len(config_obj.TARGET_COLS)`。
+        - 如果 `predictions_scaled.shape[-1] > num_target_cols`：
+            - 记录警告日志。
+            - 将 `predictions_scaled` 切片为 `predictions_scaled[:, :, :num_target_cols]`，假设目标列是预测结果中的前 `num_target_cols` 列。
+        - 如果 `predictions_scaled.shape[-1] < num_target_cols`：
+            - 记录错误日志，提示评估可能不准确。
+        - 更新 `n_features_to_evaluate = predictions_scaled.shape[-1]`。
+        - 修改 `_inverse_transform_target_cols` 辅助函数，使其接受 `current_n_features_to_evaluate` 参数，并根据此参数和 `config_for_inverse.N_FEATURES` 正确地构建 `dummy_data_for_inverse` 并提取逆变换后的目标列。
+        - 确保后续的重塑和指标计算都基于调整后的 `predictions_scaled` 和 `n_features_to_evaluate`。
