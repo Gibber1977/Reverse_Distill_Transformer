@@ -44,9 +44,9 @@ def clean_between_experiments():
         torch.cuda.empty_cache()
 # --- 实验配置 ---
 DATASETS = {
-    'exchange_rate': './data/exchange_rate.csv',
+    # 'exchange_rate': './data/exchange_rate.csv',
     # 'national_illness': './data/national_illness.csv',
-    'weather': './data/weather.csv',
+    # 'weather': './data/weather.csv',
     'ETTh1': './data/ETT-small/ETTh1.csv',
     # 'ETTh2': './data/ETT-small/ETTh2.csv',
     # 'ETTm1': './data/ETT-small/ETTm1.csv',
@@ -55,7 +55,7 @@ DATASETS = {
 }
 
 # PREDICTION_HORIZONS = [24, 96, 192, 336, 720]
-PREDICTION_HORIZONS = [ 24,720]
+PREDICTION_HORIZONS = [ 24]
 LOOKBACK_WINDOW = 192
 EPOCHS = 50
 STABILITY_RUNS = 1
@@ -311,7 +311,8 @@ def run_experiment(
         utils.plot_weights_biases_distribution(teacher_model, plot_save_dir, teacher_model_name)
         for metric, value in teacher_metrics.items():
             results[f'Teacher_{metric}'] = value
-            
+        
+        # 在 Teacher 模型评估后清理内存
         logger.info("Teacher模型训练和评估后内存状态:")
         clean_memory(logger)
 
@@ -366,7 +367,7 @@ def run_experiment(
             results[f'TaskOnly_{metric}'] = value
         # 相似度已包含在 task_only_metrics 中
         
-        # 释放不再需要的变量
+        # 释放不再需要的变量并在 TaskOnly 模型评估后清理内存
         del task_only_model, task_only_history, task_only_preds_original
         logger.info("TaskOnly模型训练和评估后内存状态:")
         clean_memory(logger)
@@ -422,7 +423,7 @@ def run_experiment(
             results[f'Follower_{metric}'] = value
         # 相似度已包含在 follower_metrics 中
         
-        # 释放不再需要的变量
+        # 释放不再需要的变量并在 Follower 模型评估后清理内存
         del follower_model, follower_history, follower_preds_original
         logger.info("Follower模型训练和评估后内存状态:")
         clean_memory(logger)
@@ -478,7 +479,7 @@ def run_experiment(
             results[f'RDT_{metric}'] = value
         # 相似度已包含在 rdt_metrics 中
         
-        # 释放不再需要的变量
+        # 释放不再需要的变量并在 RDT 模型评估后清理内存
         del rdt_model, rdt_history, rdt_preds_original
         logger.info("RDT模型训练和评估后内存状态:")
         clean_memory(logger)
@@ -562,6 +563,10 @@ def run_experiment(
         
         if pbar:
             pbar.update(1)
+        
+        # 在每次 run_experiment 运行结束时清理内存
+        logger.info(f"--- Stability Run {run_idx + 1}/{stability_runs} (Seed: {current_seed}) 结束，清理内存。 ---")
+        clean_memory(logger)
 
     return all_run_results, all_similarity_results
 
@@ -787,6 +792,7 @@ def plot_noise_evaluation(results_df, similarity_df, output_dir, logger):
                 plt.grid(True)
                 utils.save_plot(plt, os.path.join(output_dir, f'{dataset}_{horizon}_noise_{metric}.png'), logger)
                 plt.close()
+                gc.collect() # 在关闭图表后立即进行垃圾回收
 
             # Plot similarity vs. noise level
             if not subset_sim_df.empty:
@@ -803,6 +809,7 @@ def plot_noise_evaluation(results_df, similarity_df, output_dir, logger):
                 plt.grid(True)
                 utils.save_plot(plt, os.path.join(output_dir, f'{dataset}_{horizon}_noise_similarity.png'), logger)
                 plt.close()
+                gc.collect() # 在关闭图表后立即进行垃圾回收
 
 def plot_smoothing_evaluation(results_df, similarity_df, output_dir, logger):
     smoothing_df = results_df[results_df['experiment_type'] == 'denoising_smoothing']
@@ -838,6 +845,7 @@ def plot_smoothing_evaluation(results_df, similarity_df, output_dir, logger):
                 plt.grid(True)
                 utils.save_plot(plt, os.path.join(output_dir, f'{dataset}_{horizon}_smoothing_{metric}.png'), logger)
                 plt.close()
+                gc.collect() # 在关闭图表后立即进行垃圾回收
 
             # Plot similarity vs. smoothing factor
             if not subset_sim_df.empty:
@@ -854,6 +862,7 @@ def plot_smoothing_evaluation(results_df, similarity_df, output_dir, logger):
                 plt.grid(True)
                 utils.save_plot(plt, os.path.join(output_dir, f'{dataset}_{horizon}_smoothing_similarity.png'), logger)
                 plt.close()
+                gc.collect() # 在关闭图表后立即进行垃圾回收
 
 if __name__ == "__main__":
     main()

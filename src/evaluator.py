@@ -332,16 +332,17 @@ def evaluate_model(model, dataloader, device, scaler, config_obj, logger, model_
     utils.plot_residuals_analysis(true_values_original, predictions_original,
                                   save_dir=actual_plots_dir, model_name=model_name,
                                   series_idx=0, target_cols_list=config_obj.TARGET_COLS)
-    utils.plot_acf_pacf(residuals_flat, save_dir=actual_plots_dir, model_name=model_name,
-                        series_idx=0, target_cols_list=config_obj.TARGET_COLS)
-    utils.plot_error_distribution(true_values_original, predictions_original,
-                                  save_dir=actual_plots_dir, model_name=model_name,
-                                  series_idx=0, target_cols_list=config_obj.TARGET_COLS,
-                                  plot_type='box') # 默认绘制箱线图
-    utils.plot_error_distribution(true_values_original, predictions_original,
-                                  save_dir=actual_plots_dir, model_name=model_name,
-                                  series_idx=0, target_cols_list=config_obj.TARGET_COLS,
-                                  plot_type='violin') # 绘制小提琴图
+    # 暂时注释掉 ACF/PACF 和误差分布图的绘制，以排查内存问题
+    # utils.plot_acf_pacf(residuals_flat, save_dir=actual_plots_dir, model_name=model_name,
+    #                     series_idx=0, target_cols_list=config_obj.TARGET_COLS)
+    # utils.plot_error_distribution(true_values_original, predictions_original,
+    #                               save_dir=actual_plots_dir, model_name=model_name,
+    #                               series_idx=0, target_cols_list=config_obj.TARGET_COLS,
+    #                               plot_type='box') # 默认绘制箱线图
+    # utils.plot_error_distribution(true_values_original, predictions_original,
+    #                               save_dir=actual_plots_dir, model_name=model_name,
+    #                               series_idx=0, target_cols_list=config_obj.TARGET_COLS,
+    #                               plot_type='violin') # 绘制小提琴图
 
     return metrics, true_values_original, predictions_original
 
