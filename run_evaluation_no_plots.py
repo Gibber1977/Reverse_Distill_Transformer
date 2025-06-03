@@ -16,26 +16,31 @@ from src.utils import set_seed, setup_logging, save_results_to_csv, save_experim
 # --- 快速测试实验配置 ---
 DATASETS = {
     'exchange_rate': './data/exchange_rate.csv',
+    # 'national_illness': './data/national_illness.csv',
+    'weather': './data/weather.csv',
+    # 'ETTh1': './data/ETT-small/ETTh1.csv',
+    # 'ETTh2': './data/ETT-small/ETTh2.csv',
+    # 'ETTm1': './data/ETT-small/ETTm1.csv',
+    # 'ETTm2': './data/ETT-small/ETTm2.csv',
+    'PEMS_0':'./data/PEMS_0.csv'
 }
-
-PREDICTION_HORIZONS = [24]
+PREDICTION_HORIZONS = [336,720]
 LOOKBACK_WINDOW = 192
-EPOCHS = 3 # 减少epochs以加快测试
-STABILITY_RUNS = 1 # 减少运行次数
+EPOCHS = 50 # 减少epochs以加快测试
+STABILITY_RUNS = 3 # 减少运行次数
 
 # 模型组合: (Teacher, Student)
 MODELS = [
-    ('DLinear', 'PatchTST'),
-    (None, 'DLinear'),       # 测试 DLinear 作为独立学生模型
-    (None, 'PatchTST')     # 测试 PatchTST 作为独立学生模型
+    ('DLinear', 'PatchTST'),     # 测试 PatchTST 作为独立学生模型
+
 ]
 
 # 噪音注入评估配置 (减少噪音水平)
-NOISE_LEVELS = [ 0.05]
+NOISE_LEVELS = [0.01,0.02,0.05,0.10,0.15,0.20]
 NOISE_TYPE = 'gaussian'
 
 # 去噪平滑评估配置 (减少平滑系数)
-SMOOTHING_FACTORS = [0.1]
+SMOOTHING_FACTORS = [0.01,0.02,0.05,0.10,0.15,0.20]
 SMOOTHING_METHOD = 'moving_average'
 
 # --- 主实验函数 (与 run_evaluation_experiments.py 相同，但使用快速测试配置) ---
