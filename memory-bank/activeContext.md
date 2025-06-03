@@ -97,6 +97,7 @@ This file tracks the project's current status, including recent changes, current
 * [2025-05-31 01:03:59] - 在 `src/evaluator.py` 中成功实现 `error_cos_similarity` 指标。添加了 `calculate_error_cosine_similarity` 函数，并修改了 `evaluate_model` 以计算并包含此新指标。确认实验脚本 (`run_evaluation_experiments.py`, `run_quick_test_evaluation.py`) 的现有CSV保存逻辑将自动处理新指标。
 * [2025-05-31 01:23:14] - 修复 `run_evaluation_experiments.py` 中 `evaluate_model` 函数调用时传递 `plots_dir` 参数导致的 `TypeError`。已从调用中移除 `plots_dir` 参数。
 * [2025-05-31 02:13:50] - 修复 `run_evaluation_experiments.py` 中 `save_plot` 未定义错误。
+* [2025-06-03 23:04:06] - 修改 `src/config.py` 和 `src/evaluator.py` 以实现默认不绘制详细评估图表的功能。
 
 ## Open Questions/Issues
 

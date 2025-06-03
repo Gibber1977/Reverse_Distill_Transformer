@@ -553,3 +553,17 @@ To maintain consistent model behavior and training stability, specific default v
         - 更新 `n_features_to_evaluate = predictions_scaled.shape[-1]`。
         - 修改 `_inverse_transform_target_cols` 辅助函数，使其接受 `current_n_features_to_evaluate` 参数，并根据此参数和 `config_for_inverse.N_FEATURES` 正确地构建 `dummy_data_for_inverse` 并提取逆变换后的目标列。
         - 确保后续的重塑和指标计算都基于调整后的 `predictions_scaled` 和 `n_features_to_evaluate`。
+---
+### Decision (Code)
+[2025-06-03 23:04:06] - 添加配置以控制是否绘制详细评估图表
+
+**Rationale:**
+为了提供更大的灵活性并减少不必要的计算和文件生成，特别是在进行大量快速实验或仅关注核心指标时，添加一个配置选项来控制是否生成详细的评估图表（如预测图、残差分析图等）。
+
+**Details:**
+- **[`src/config.py`](src/config.py:88)**:
+    - 在 `Config` 类中添加了新的类属性 `PLOT_EVALUATION_DETAILS`，默认值为 `False`。
+- **[`src/evaluator.py`](src/evaluator.py:338-386)**:
+    - 在 `evaluate_model` 函数中，将所有详细评估图表的绘制代码（`utils.plot_predictions`, `utils.plot_residuals_analysis`, `utils.plot_acf_pacf`, `utils.plot_error_distribution`）包裹在一个条件语句 `if getattr(config_obj, 'PLOT_EVALUATION_DETAILS', False):` 中。
+    - 如果 `PLOT_EVALUATION_DETAILS` 为 `False` 或未在配置对象中设置，则跳过绘图，并记录一条相应的日志消息。
+    - 解除了对 `utils.plot_acf_pacf` 和 `utils.plot_error_distribution` 的注释，使其受新配置控制。

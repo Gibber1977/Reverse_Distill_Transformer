@@ -335,54 +335,65 @@ def evaluate_model(model, dataloader, device, scaler, config_obj, logger, model_
     # np.save(os.path.join(config.RESULTS_DIR, f"{model_name}_preds.npy"), predictions_original)
     # np.save(os.path.join(config.RESULTS_DIR, f"{model_name}_trues.npy"), true_values_original)
 
-    # --- 绘制预测图 (只绘制第一个特征) ---
-    # 构建更详细的图片文件名和标题
-    # 从 config_obj 中获取实验参数
-    dataset_name = config_obj.DATASET_NAME if hasattr(config_obj, 'DATASET_NAME') else "UnknownDataset"
-    pred_horizon = config_obj.PREDICTION_HORIZON
-    noise_level = config_obj.TRAIN_NOISE_INJECTION_LEVEL
-    smoothing_weight_smoothing = config_obj.SMOOTHING_WEIGHT_SMOOTHING
-    run_idx = config_obj.RUN_IDX if hasattr(config_obj, 'RUN_IDX') else "UnknownRun"
-    current_seed = config_obj.SEED if hasattr(config_obj, 'SEED') else "UnknownSeed"
+    # --- 绘制评估图表 (可选) ---
+    if getattr(config_obj, 'PLOT_EVALUATION_DETAILS', False):
+        logger.info(f"Plotting detailed evaluation plots for {model_name} as per configuration.")
+        # 构建更详细的图片文件名和标题
+        # 从 config_obj 中获取实验参数
+        dataset_name = config_obj.DATASET_NAME if hasattr(config_obj, 'DATASET_NAME') else "UnknownDataset"
+        pred_horizon = config_obj.PREDICTION_HORIZON
+        noise_level = config_obj.TRAIN_NOISE_INJECTION_LEVEL
+        smoothing_weight_smoothing = config_obj.SMOOTHING_WEIGHT_SMOOTHING
+        run_idx = config_obj.RUN_IDX if hasattr(config_obj, 'RUN_IDX') else "UnknownRun"
+        current_seed = config_obj.SEED if hasattr(config_obj, 'SEED') else "UnknownSeed"
 
-    # 确保 plots_dir 是 config.RESULTS_DIR 下的 plots 子目录
-    actual_plots_dir = os.path.join(config_obj.RESULTS_DIR, "plots")
-    os.makedirs(actual_plots_dir, exist_ok=True) # 确保目录存在
+        # 确保 plots_dir 是 config.RESULTS_DIR 下的 plots 子目录
+        actual_plots_dir = os.path.join(config_obj.RESULTS_DIR, "plots")
+        os.makedirs(actual_plots_dir, exist_ok=True) # 确保目录存在
 
-    plot_filename = (
-        f"{model_name}_"
-        f"{dataset_name}_h{pred_horizon}_noise{noise_level}_smooth_w{smoothing_weight_smoothing}_"
-        f"run{run_idx}_seed{current_seed}_test_predictions.png"
-    )
-    plot_save_path = os.path.join(actual_plots_dir, plot_filename)
+        # --- 绘制预测图 (只绘制第一个特征) ---
+        plot_filename_pred = (
+            f"{model_name}_"
+            f"{dataset_name}_h{pred_horizon}_noise{noise_level}_smooth_w{smoothing_weight_smoothing}_"
+            f"run{run_idx}_seed{current_seed}_test_predictions.png"
+        )
+        plot_save_path_pred = os.path.join(actual_plots_dir, plot_filename_pred)
 
-    plot_title = (
-        f"{model_name} - {dataset_name} (H:{pred_horizon}, Noise:{noise_level}, Smooth:{smoothing_weight_smoothing}) "
-        f"Run {run_idx} Seed {current_seed} - Test Set Predictions vs True Values"
-    )
+        plot_title_pred = (
+            f"{model_name} - {dataset_name} (H:{pred_horizon}, Noise:{noise_level}, Smooth:{smoothing_weight_smoothing}) "
+            f"Run {run_idx} Seed {current_seed} - Test Set Predictions vs True Values"
+        )
 
-    utils.plot_predictions(true_values_original, predictions_original,
-                           title=plot_title,
-                           save_path=plot_save_path, series_idx=0,
-                           target_cols_list=config_obj.TARGET_COLS)
+        utils.plot_predictions(true_values_original, predictions_original,
+                               title=plot_title_pred,
+                               save_path=plot_save_path_pred, series_idx=0,
+                               target_cols_list=config_obj.TARGET_COLS)
 
-    # --- 绘制残差分析图 ---
-    # 提取第一个特征的残差进行 ACF/PACF 分析
-    residuals_flat = (true_values_original[:, :, 0] - predictions_original[:, :, 0]).flatten()
-    utils.plot_residuals_analysis(true_values_original, predictions_original,
-                                  save_dir=actual_plots_dir, model_name=model_name,
-                                  series_idx=0, target_cols_list=config_obj.TARGET_COLS)
-    # 暂时注释掉 ACF/PACF 和误差分布图的绘制，以排查内存问题
-    # utils.plot_acf_pacf(residuals_flat, save_dir=actual_plots_dir, model_name=model_name,
-    #                     series_idx=0, target_cols_list=config_obj.TARGET_COLS)
-    # utils.plot_error_distribution(true_values_original, predictions_original,
-    #                               save_dir=actual_plots_dir, model_name=model_name,
-    #                               series_idx=0, target_cols_list=config_obj.TARGET_COLS,
-    #                               plot_type='box') # 默认绘制箱线图
-    # utils.plot_error_distribution(true_values_original, predictions_original,
-    #                               save_dir=actual_plots_dir, model_name=model_name,
-    #                               series_idx=0, target_cols_list=config_obj.TARGET_COLS,
-    #                               plot_type='violin') # 绘制小提琴图
+        # --- 绘制残差分析图 ---
+        # 提取第一个特征的残差进行 ACF/PACF 分析
+        residuals_flat = (true_values_original[:, :, 0] - predictions_original[:, :, 0]).flatten()
+        utils.plot_residuals_analysis(true_values_original, predictions_original,
+                                      save_dir=actual_plots_dir, model_name=model_name,
+                                      series_idx=0, target_cols_list=config_obj.TARGET_COLS)
+        
+        # --- 绘制 ACF/PACF 和误差分布图 ---
+        # 确保在尝试绘图前 residuals_flat 不为空
+        if residuals_flat.size > 0:
+            utils.plot_acf_pacf(residuals_flat, save_dir=actual_plots_dir, model_name=model_name,
+                                series_idx=0, target_cols_list=config_obj.TARGET_COLS)
+        else:
+            logger.warning(f"Skipping ACF/PACF plot for {model_name} as residuals_flat is empty.")
+
+        utils.plot_error_distribution(true_values_original, predictions_original,
+                                      save_dir=actual_plots_dir, model_name=model_name,
+                                      series_idx=0, target_cols_list=config_obj.TARGET_COLS,
+                                      plot_type='box') # 默认绘制箱线图
+        utils.plot_error_distribution(true_values_original, predictions_original,
+                                      save_dir=actual_plots_dir, model_name=model_name,
+                                      series_idx=0, target_cols_list=config_obj.TARGET_COLS,
+                                      plot_type='violin') # 绘制小提琴图
+    else:
+        logger.info(f"Skipping detailed evaluation plots for {model_name} as per configuration (PLOT_EVALUATION_DETAILS is False or not set).")
 
     return metrics, true_values_original, predictions_original
 

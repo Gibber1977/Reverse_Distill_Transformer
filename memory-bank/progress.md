@@ -102,6 +102,8 @@ This file tracks the project's progress using a task list format.
 * [2025-06-03 16:59:16] - Completed: Modified [`run_evaluation_no_plots.py`](run_evaluation_no_plots.py) to correctly handle `teacher_model_name = None` scenarios.
 * [2025-06-03 17:07:24] - 完成对 [`src/models.py`](src/models.py:1) 中 `MLPModel` ([`src/models.py:185`](src/models.py:185)), `RNNModel` ([`src/models.py:213`](src/models.py:213)), 和 `LSTMModel` ([`src/models.py:246`](src/models.py:246)) `forward` 方法的修改，以解决输入维度不匹配问题。
 * [2025-06-03 17:30:23] - 完成对 [`src/models.py`](src/models.py:1) 的修改，以确保自定义模型 (`MLPModel`, `RNNModel`, `LSTMModel`) 输出正确数量的特征 (即 `len(config.TARGET_COLS)`)。
+* [2025-06-03 17:33:48] - 完成对 `src/evaluator.py` 中 `evaluate_model` 函数的修改，以正确处理模型输出特征数多于目标列的情况。
+* [2025-06-03 23:04:06] - 完成在 `src/config.py` 和 `src/evaluator.py` 中实现默认不绘制详细评估图表的功能。
 
 ## Current Tasks
 
@@ -118,4 +120,3 @@ This file tracks the project's progress using a task list format.
 * 改进文档，添加更详细的使用说明和API参考
 - 2025-05-26 下午2:45:18 - 开始编写新功能文档。
 - 2025-05-26 下午2:45:49 - 完成新功能文档 `docs/new_features.md` 的编写。
-* [2025-06-03 17:33:48] - 完成对 `src/evaluator.py` 中 `evaluate_model` 函数的修改，以正确处理模型输出特征数多于目标列的情况。
