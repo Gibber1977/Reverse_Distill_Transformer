@@ -567,3 +567,15 @@ To maintain consistent model behavior and training stability, specific default v
     - 在 `evaluate_model` 函数中，将所有详细评估图表的绘制代码（`utils.plot_predictions`, `utils.plot_residuals_analysis`, `utils.plot_acf_pacf`, `utils.plot_error_distribution`）包裹在一个条件语句 `if getattr(config_obj, 'PLOT_EVALUATION_DETAILS', False):` 中。
     - 如果 `PLOT_EVALUATION_DETAILS` 为 `False` 或未在配置对象中设置，则跳过绘图，并记录一条相应的日志消息。
     - 解除了对 `utils.plot_acf_pacf` 和 `utils.plot_error_distribution` 的注释，使其受新配置控制。
+---
+### Decision (Code)
+[2025-06-15 02:03:17] - Refactor model save paths in `run_evaluation_no_plots.py` to prevent conflicts.
+
+**Rationale:**
+The original implementation saved all models from different experiment runs into a single, hardcoded directory (`config.RESULTS_DIR`). This caused models from subsequent runs to overwrite those from previous runs, making it impossible to analyze or retrieve models from specific experiments, especially when running multiple configurations in sequence. To resolve this, each experiment run needs a unique results directory.
+
+**Details:**
+- **[`run_evaluation_no_plots.py`](run_evaluation_no_plots.py)**:
+    - The `run_experiment` function signature was modified to accept a new `results_dir` parameter.
+    - Inside `run_experiment`, all calls to `os.path.join(config.RESULTS_DIR, ...)` for `model_save_path` were changed to `os.path.join(results_dir, ...)`. This affects the saving paths for the Teacher, TaskOnly (standalone and RDT-style), Follower, and RDT models.
+    - In the `main` function, the timestamped `results_dir` created at the beginning is now passed as an argument to all calls of the `run_experiment` function, ensuring each experiment's artifacts are isolated.

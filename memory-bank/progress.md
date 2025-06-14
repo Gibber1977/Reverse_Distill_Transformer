@@ -105,6 +105,7 @@ This file tracks the project's progress using a task list format.
 * [2025-06-03 17:33:48] - 完成对 `src/evaluator.py` 中 `evaluate_model` 函数的修改，以正确处理模型输出特征数多于目标列的情况。
 * [2025-06-03 23:04:06] - 完成在 `src/config.py` 和 `src/evaluator.py` 中实现默认不绘制详细评估图表的功能。
 
+* [2025-06-15 02:03:29] - 完成对 `run_evaluation_no_plots.py` 的修改，通过引入 `results_dir` 参数解决了模型保存路径冲突和覆盖的问题。
 * [2025-06-15 01:47:49] - 完成了在 `src/config.py` 中添加 WAPE 和 MAPE 评估指标的任务。
 ## Current Tasks
 

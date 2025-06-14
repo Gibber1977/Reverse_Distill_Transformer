@@ -14,6 +14,7 @@ This file tracks the project's current status, including recent changes, current
 * **[已完成]** 实现新的模型相似度指标 error_cos_similarity，基于预测误差的余弦相似度。 (Timestamp: 2025-05-31 00:59:51)
 
 * [2025-06-15 01:47:27] - 在 `src/config.py` 中添加了 WAPE 和 MAPE 评估指标。
+* [2025-06-15 02:03:02] - 修改 `run_evaluation_no_plots.py` 以解决模型保存路径冲突问题。为 `run_experiment` 函数添加了 `results_dir` 参数，并更新了所有模型保存路径和函数调用，以使用此新参数，确保每个实验的结果都保存在其唯一的带时间戳的目录中。
 ## Recent Changes
 
 * 2025-05-26 13:09:00 - 创建了Memory Bank基础结构

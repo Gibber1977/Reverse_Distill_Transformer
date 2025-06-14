@@ -53,6 +53,7 @@ def run_experiment(
     stability_runs,
     teacher_model_name,
     student_model_name,
+    results_dir,  # 新增参数
     noise_level=0,
     noise_type=None,
     smoothing_factor=0,
@@ -171,7 +172,7 @@ def run_experiment(
                 device=config.DEVICE,
                 epochs=config.EPOCHS,
                 patience=config.PATIENCE,
-                model_save_path=os.path.join(config.RESULTS_DIR, f"{teacher_model_name}_teacher_model.pt"),
+                model_save_path=os.path.join(results_dir, f"{teacher_model_name}_teacher_model.pt"),
                 scaler=scaler,
                 config_obj=config,
                 model_name=teacher_model_name
@@ -205,7 +206,7 @@ def run_experiment(
                 device=config.DEVICE,
                 epochs=config.EPOCHS,
                 patience=config.PATIENCE,
-                model_save_path=os.path.join(config.RESULTS_DIR, f"{student_model_name}_task_only_standalone_model.pt"),
+                model_save_path=os.path.join(results_dir, f"{student_model_name}_task_only_standalone_model.pt"),
                 scaler=scaler,
                 config_obj=config,
                 model_name=f"{student_model_name}_TaskOnly_Standalone"
@@ -233,7 +234,7 @@ def run_experiment(
                 device=config.DEVICE,
                 epochs=config.EPOCHS,
                 patience=config.PATIENCE,
-                model_save_path=os.path.join(config.RESULTS_DIR, f"{student_model_name}_task_only_model.pt"),
+                model_save_path=os.path.join(results_dir, f"{student_model_name}_task_only_model.pt"),
                 scaler=scaler,
                 config_obj=config,
                 model_name=f"{student_model_name}_TaskOnly"
@@ -269,7 +270,7 @@ def run_experiment(
                 device=config.DEVICE,
                 epochs=config.EPOCHS,
                 patience=config.PATIENCE,
-                model_save_path=os.path.join(config.RESULTS_DIR, f"{student_model_name}_follower_model.pt"),
+                model_save_path=os.path.join(results_dir, f"{student_model_name}_follower_model.pt"),
                 scaler=scaler,
                 config_obj=config,
                 model_name=f"{student_model_name}_Follower"
@@ -303,7 +304,7 @@ def run_experiment(
                 device=config.DEVICE,
                 epochs=config.EPOCHS,
                 patience=config.PATIENCE,
-                model_save_path=os.path.join(config.RESULTS_DIR, f"{student_model_name}_rdt_model.pt"),
+                model_save_path=os.path.join(results_dir, f"{student_model_name}_rdt_model.pt"),
                 scaler=scaler,
                 config_obj=config,
                 model_name=f"{student_model_name}_RDT"
@@ -412,6 +413,7 @@ def main():
                 run_results, sim_results = run_experiment(
                     dataset_name, dataset_path, pred_horizon, LOOKBACK_WINDOW, EPOCHS, STABILITY_RUNS,
                     teacher_model, student_model,
+                    results_dir,
                     experiment_type='standard', logger=logger
                 )
                 all_experiment_results.extend(run_results)
@@ -423,6 +425,7 @@ def main():
                     run_results, sim_results = run_experiment(
                         dataset_name, dataset_path, pred_horizon, LOOKBACK_WINDOW, EPOCHS, STABILITY_RUNS,
                         teacher_model, student_model,
+                        results_dir,
                         noise_level=noise_level, noise_type=NOISE_TYPE,
                         experiment_type='noise_injection', logger=logger
                     )
@@ -435,6 +438,7 @@ def main():
                     run_results, sim_results = run_experiment(
                         dataset_name, dataset_path, pred_horizon, LOOKBACK_WINDOW, EPOCHS, STABILITY_RUNS,
                         teacher_model, student_model,
+                        results_dir,
                         smoothing_factor=smoothing_factor, smoothing_method=SMOOTHING_METHOD,
                         experiment_type='denoising_smoothing', logger=logger
                     )
