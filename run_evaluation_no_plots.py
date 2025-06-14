@@ -107,9 +107,15 @@ def run_experiment(
 
         # 根据实验类型调整数据处理
         if experiment_type == 'noise_injection':
-            pass
+            # For noise injection, ensure no smoothing is applied
+            config.SMOOTHING_FACTOR = 0
+            config.SMOOTHING_METHOD = None
         elif experiment_type == 'denoising_smoothing':
-            pass
+            # For denoising/smoothing, ensure no noise is injected
+            config.TRAIN_NOISE_INJECTION_LEVEL = 0
+            config.NOISE_TYPE = None
+            config.SMOOTHING_FACTOR = smoothing_factor
+            config.SMOOTHING_METHOD = smoothing_method
         else: # standard experiment, ensure no noise or smoothing
             config.TRAIN_NOISE_INJECTION_LEVEL = 0
             config.NOISE_TYPE = None
