@@ -94,7 +94,8 @@ class Config:
         self.NOISE_TYPE = 'gaussian'
 
         self.SMOOTHING_METHOD = 'none'
-        self.SMOOTHING_FACTOR = 0.5
+        self.WEIGHT_SMOOTHING = 0.5
+        self.SMOOTHING_WINDOW_SIZE = 24 # 新增：用于移动平均的窗口大小
         self.SMOOTHING_APPLY_TRAIN = False
         self.SMOOTHING_APPLY_VAL = False
         self.SMOOTHING_APPLY_TEST = False

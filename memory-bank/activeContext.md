@@ -16,7 +16,9 @@ This file tracks the project's current status, including recent changes, current
 * [2025-06-15 01:47:27] - 在 `src/config.py` 中添加了 WAPE 和 MAPE 评估指标。
 * [2025-06-15 02:03:02] - 修改 `run_evaluation_no_plots.py` 以解决模型保存路径冲突问题。为 `run_experiment` 函数添加了 `results_dir` 参数，并更新了所有模型保存路径和函数调用，以使用此新参数，确保每个实验的结果都保存在其唯一的带时间戳的目录中。
 ## Recent Changes
+* [2025-06-15 02:24:30] - 根据 `spec-pseudocode` 的分析，修改了 `run_evaluation_no_plots.py`。在 `run_experiment` 函数中，当 `experiment_type` 为 'denoising_smoothing' 时，将 `config.SMOOTHING_APPLY_TRAIN`、`config.SMOOTHING_APPLY_VAL` 和 `config.SMOOTHING_APPLY_TEST` 设置为 `True`，以确保在所有数据集分割上都应用平滑处理。
 
+* [2025-06-15 02:39:54] - 将 `run_evaluation_no_plots.py` 和 `src/config.py` 中的 `SMOOTHING_FACTORS` 和 `smoothing_factor` 重命名为 `WEIGHT_SMOOTHING_FACTORS` 和 `weight_smoothing`，以更好地反映其作为数据合成权重的意图。
 * 2025-05-26 13:09:00 - 创建了Memory Bank基础结构
 * 2025-05-26 13:09:00 - 分析了主要模块(models.py, trainer.py, data_handler.py)的实现逻辑
 * 2025-05-26 14:35:24 - 更新了 `productContext.md` 以反映新功能需求。
@@ -118,3 +120,5 @@ This file tracks the project's current status, including recent changes, current
 * [2025-06-03 17:07:15] - 修改了 [`src/models.py`](src/models.py:1) 中的 `MLPModel` ([`src/models.py:185`](src/models.py:185)), `RNNModel` ([`src/models.py:213`](src/models.py:213)), 和 `LSTMModel` ([`src/models.py:246`](src/models.py:246)) 的 `forward` 方法，通过在输入中包含 `X_df` (如果存在) 来解决 `RuntimeError: input.size(-1) must be equal to input_size` 的问题。
 * [2025-06-03 17:29:24] - 修改 [`src/models.py`](src/models.py:1) 以确保自定义模型 (`MLPModel`, `RNNModel`, `LSTMModel`) 输出正确数量的特征 (即 `len(config.TARGET_COLS)`)。
 * [2025-06-03 17:33:39] - 修改 `src/evaluator.py` 中的 `evaluate_model` 函数，以正确处理模型输出特征数多于目标列的情况。
+* [2025-06-15 02:16:39] - 修复了 `run_evaluation_no_plots.py` 中平滑功能未生效的问题，通过在 'denoising_smoothing' 实验中设置 `config.APPLY_SMOOTHING = True` 来激活平滑处理。
+* [2025-06-15 02:46:46] - [Debug Status Update: Fix Confirmed] 修复了 `smooth_data` 函数中的 `ValueError`。通过在 `src/config.py` 中恢复 `SMOOTHING_WINDOW_SIZE` 配置，并更新 `src/data_handler.py` 中对 `smooth_data` 的调用以使用正确的参数，解决了因不完整重构导致的问题。

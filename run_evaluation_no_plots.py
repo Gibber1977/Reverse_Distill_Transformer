@@ -17,17 +17,18 @@ from src.utils import set_seed, setup_logging, save_results_to_csv, save_experim
 DATASETS = {
     'exchange_rate': './data/exchange_rate.csv',
     # 'national_illness': './data/national_illness.csv',
-    'weather': './data/weather.csv',
-    # 'ETTh1': './data/ETT-small/ETTh1.csv',
-    # 'ETTh2': './data/ETT-small/ETTh2.csv',
-    # 'ETTm1': './data/ETT-small/ETTm1.csv',
-    # 'ETTm2': './data/ETT-small/ETTm2.csv',
-    'PEMS_0':'./data/PEMS_0.csv'
+    # 'weather': './data/weather.csv',
+    # # 'ETTh1': './data/ETT-small/ETTh1.csv',
+    # # 'ETTh2': './data/ETT-small/ETTh2.csv',
+    # # 'ETTm1': './data/ETT-small/ETTm1.csv',
+    # # 'ETTm2': './data/ETT-small/ETTm2.csv',
+    # 'PEMS_0':'./data/PEMS_0.csv'
 }
-PREDICTION_HORIZONS = [336,720]
+# PREDICTION_HORIZONS = [336,720]
+PREDICTION_HORIZONS = [336]
 LOOKBACK_WINDOW = 192
-EPOCHS = 50 # 减少epochs以加快测试
-STABILITY_RUNS = 3 # 减少运行次数
+EPOCHS = 3 # 减少epochs以加快测试
+STABILITY_RUNS = 1 # 减少运行次数
 
 # 模型组合: (Teacher, Student)
 MODELS = [
@@ -36,11 +37,13 @@ MODELS = [
 ]
 
 # 噪音注入评估配置 (减少噪音水平)
-NOISE_LEVELS = [0.01,0.02,0.05,0.10,0.15,0.20]
+# NOISE_LEVELS = [0.01,0.02,0.05,0.10,0.15,0.20]
+NOISE_LEVELS = []
 NOISE_TYPE = 'gaussian'
 
 # 去噪平滑评估配置 (减少平滑系数)
-SMOOTHING_FACTORS = [0.01,0.02,0.05,0.10,0.15,0.20]
+# WEIGHT_SMOOTHING_FACTORS = [0.01,0.02,0.05,0.10,0.15,0.20]
+WEIGHT_SMOOTHING_FACTORS = [0.01,0.02]
 SMOOTHING_METHOD = 'moving_average'
 
 # --- 主实验函数 (与 run_evaluation_experiments.py 相同，但使用快速测试配置) ---
@@ -53,10 +56,9 @@ def run_experiment(
     stability_runs,
     teacher_model_name,
     student_model_name,
-    results_dir,  # 新增参数
     noise_level=0,
     noise_type=None,
-    smoothing_factor=0,
+    weight_smoothing=0,
     smoothing_method=None,
     experiment_type='standard', # 'standard', 'noise_injection', 'denoising_smoothing'
     logger=None
@@ -67,7 +69,7 @@ def run_experiment(
     if noise_type:
         logger.info(f"Noise: {noise_type} at level {noise_level}")
     if smoothing_method:
-        logger.info(f"Smoothing: {smoothing_method} with factor {smoothing_factor}")
+        logger.info(f"Smoothing: {smoothing_method} with weight_smoothing {weight_smoothing}")
 
     all_run_results = []
     all_similarity_results = []
@@ -87,7 +89,7 @@ def run_experiment(
         config.EPOCHS = epochs
         config.TRAIN_NOISE_INJECTION_LEVEL = noise_level
         config.NOISE_TYPE = noise_type
-        config.SMOOTHING_FACTOR = smoothing_factor
+        config.WEIGHT_SMOOTHING = weight_smoothing
         config.SMOOTHING_METHOD = smoothing_method
         config.SIMILARITY_METRIC = 'cosine_similarity' # 固定为余弦相似度
 
@@ -109,19 +111,20 @@ def run_experiment(
         # 根据实验类型调整数据处理
         if experiment_type == 'noise_injection':
             # For noise injection, ensure no smoothing is applied
-            config.SMOOTHING_FACTOR = 0
+            config.WEIGHT_SMOOTHING = 0
             config.SMOOTHING_METHOD = None
         elif experiment_type == 'denoising_smoothing':
             # For denoising/smoothing, ensure no noise is injected
             config.TRAIN_NOISE_INJECTION_LEVEL = 0
             config.NOISE_TYPE = None
-            config.SMOOTHING_FACTOR = smoothing_factor
+            config.SMOOTHING_APPLY_TRAIN = True
+            config.SMOOTHING_APPLY_VAL = True
+            config.SMOOTHING_APPLY_TEST = True
+            config.WEIGHT_SMOOTHING = weight_smoothing
             config.SMOOTHING_METHOD = smoothing_method
         else: # standard experiment, ensure no noise or smoothing
             config.TRAIN_NOISE_INJECTION_LEVEL = 0
             config.NOISE_TYPE = None
-            config.SMOOTHING_FACTOR = 0
-            config.SMOOTHING_METHOD = None
 
         # 从 dataset_path 或 dataset_name 中提取文件名
         dataset_filename = os.path.basename(dataset_path)
@@ -172,7 +175,7 @@ def run_experiment(
                 device=config.DEVICE,
                 epochs=config.EPOCHS,
                 patience=config.PATIENCE,
-                model_save_path=os.path.join(results_dir, f"{teacher_model_name}_teacher_model.pt"),
+                model_save_path=os.path.join(config.RESULTS_DIR, f"{teacher_model_name}_teacher_model.pt"),
                 scaler=scaler,
                 config_obj=config,
                 model_name=teacher_model_name
@@ -206,7 +209,7 @@ def run_experiment(
                 device=config.DEVICE,
                 epochs=config.EPOCHS,
                 patience=config.PATIENCE,
-                model_save_path=os.path.join(results_dir, f"{student_model_name}_task_only_standalone_model.pt"),
+                model_save_path=os.path.join(config.RESULTS_DIR, f"{student_model_name}_task_only_standalone_model.pt"),
                 scaler=scaler,
                 config_obj=config,
                 model_name=f"{student_model_name}_TaskOnly_Standalone"
@@ -234,7 +237,7 @@ def run_experiment(
                 device=config.DEVICE,
                 epochs=config.EPOCHS,
                 patience=config.PATIENCE,
-                model_save_path=os.path.join(results_dir, f"{student_model_name}_task_only_model.pt"),
+                model_save_path=os.path.join(config.RESULTS_DIR, f"{student_model_name}_task_only_model.pt"),
                 scaler=scaler,
                 config_obj=config,
                 model_name=f"{student_model_name}_TaskOnly"
@@ -270,7 +273,7 @@ def run_experiment(
                 device=config.DEVICE,
                 epochs=config.EPOCHS,
                 patience=config.PATIENCE,
-                model_save_path=os.path.join(results_dir, f"{student_model_name}_follower_model.pt"),
+                model_save_path=os.path.join(config.RESULTS_DIR, f"{student_model_name}_follower_model.pt"),
                 scaler=scaler,
                 config_obj=config,
                 model_name=f"{student_model_name}_Follower"
@@ -304,7 +307,7 @@ def run_experiment(
                 device=config.DEVICE,
                 epochs=config.EPOCHS,
                 patience=config.PATIENCE,
-                model_save_path=os.path.join(results_dir, f"{student_model_name}_rdt_model.pt"),
+                model_save_path=os.path.join(config.RESULTS_DIR, f"{student_model_name}_rdt_model.pt"),
                 scaler=scaler,
                 config_obj=config,
                 model_name=f"{student_model_name}_RDT"
@@ -365,7 +368,7 @@ def run_experiment(
             'student_model': student_model_name,
             'noise_level': noise_level,
             'noise_type': noise_type,
-            'smoothing_factor': smoothing_factor,
+            'weight_smoothing': weight_smoothing,
             'smoothing_method': smoothing_method,
             'experiment_type': experiment_type,
             'run_idx': run_idx + 1
@@ -392,7 +395,7 @@ def main():
     current_config.EPOCHS = EPOCHS
     current_config.STABILITY_RUNS = STABILITY_RUNS
     current_config.ROBUSTNESS_NOISE_LEVELS = NOISE_LEVELS
-    current_config.SMOOTHING_FACTORS = SMOOTHING_FACTORS
+    current_config.WEIGHT_SMOOTHING_FACTORS = WEIGHT_SMOOTHING_FACTORS
     current_config.update_model_configs()
     
     save_experiment_metadata(current_config, results_dir, f"quick_test_no_plots_experiment_{timestamp}")
@@ -413,7 +416,6 @@ def main():
                 run_results, sim_results = run_experiment(
                     dataset_name, dataset_path, pred_horizon, LOOKBACK_WINDOW, EPOCHS, STABILITY_RUNS,
                     teacher_model, student_model,
-                    results_dir,
                     experiment_type='standard', logger=logger
                 )
                 all_experiment_results.extend(run_results)
@@ -425,7 +427,6 @@ def main():
                     run_results, sim_results = run_experiment(
                         dataset_name, dataset_path, pred_horizon, LOOKBACK_WINDOW, EPOCHS, STABILITY_RUNS,
                         teacher_model, student_model,
-                        results_dir,
                         noise_level=noise_level, noise_type=NOISE_TYPE,
                         experiment_type='noise_injection', logger=logger
                     )
@@ -434,12 +435,11 @@ def main():
 
                 # 3. 去噪平滑评估
                 logger.info("\n--- Running Denoising Smoothing Evaluation ---")
-                for smoothing_factor in SMOOTHING_FACTORS:
+                for weight_smoothing in WEIGHT_SMOOTHING_FACTORS:
                     run_results, sim_results = run_experiment(
                         dataset_name, dataset_path, pred_horizon, LOOKBACK_WINDOW, EPOCHS, STABILITY_RUNS,
                         teacher_model, student_model,
-                        results_dir,
-                        smoothing_factor=smoothing_factor, smoothing_method=SMOOTHING_METHOD,
+                        weight_smoothing=weight_smoothing, smoothing_method=SMOOTHING_METHOD,
                         experiment_type='denoising_smoothing', logger=logger
                     )
                     all_experiment_results.extend(run_results)

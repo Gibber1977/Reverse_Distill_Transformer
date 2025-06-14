@@ -107,6 +107,7 @@ This file tracks the project's progress using a task list format.
 
 * [2025-06-15 02:03:29] - 完成对 `run_evaluation_no_plots.py` 的修改，通过引入 `results_dir` 参数解决了模型保存路径冲突和覆盖的问题。
 * [2025-06-15 01:47:49] - 完成了在 `src/config.py` 中添加 WAPE 和 MAPE 评估指标的任务。
+* [2025-06-15 02:25:09] - 完成对 `run_evaluation_no_plots.py` 的修改。在 'denoising_smoothing' 实验中，为训练、验证和测试集明确启用了平滑处理，以确保数据处理流程的一致性。
 ## Current Tasks
 
 * 初始化Memory Bank以记录项目架构和设计决策
@@ -122,3 +123,5 @@ This file tracks the project's progress using a task list format.
 * 改进文档，添加更详细的使用说明和API参考
 - 2025-05-26 下午2:45:18 - 开始编写新功能文档。
 - 2025-05-26 下午2:45:49 - 完成新功能文档 `docs/new_features.md` 的编写。
+* [2025-06-15 02:16:51] - 完成对 `run_evaluation_no_plots.py` 的修复，确保在 'denoising_smoothing' 实验中平滑化功能能够根据配置正确生效。
+* [2025-06-15 02:47:06] - [Debugging Task Status Update] 完成了对 `smooth_data` 函数 `ValueError` 的修复。

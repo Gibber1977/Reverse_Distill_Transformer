@@ -579,3 +579,58 @@ The original implementation saved all models from different experiment runs into
     - The `run_experiment` function signature was modified to accept a new `results_dir` parameter.
     - Inside `run_experiment`, all calls to `os.path.join(config.RESULTS_DIR, ...)` for `model_save_path` were changed to `os.path.join(results_dir, ...)`. This affects the saving paths for the Teacher, TaskOnly (standalone and RDT-style), Follower, and RDT models.
     - In the `main` function, the timestamped `results_dir` created at the beginning is now passed as an argument to all calls of the `run_experiment` function, ensuring each experiment's artifacts are isolated.
+---
+### Decision (Code)
+[2025-06-15 02:16:24] - 修复 `run_evaluation_no_plots.py` 中平滑功能未生效的问题
+
+**Rationale:**
+在 `run_evaluation_no_plots.py` 脚本中，当实验类型为 'denoising_smoothing' 时，尽管设置了 `SMOOTHING_FACTOR` 和 `SMOOTHING_METHOD`，但并未激活全局平滑开关 `config.APPLY_SMOOTHING`。这导致 `load_and_preprocess_data` 函数跳过了平滑处理步骤，使得平滑化评估无效。
+
+**Details:**
+- **[`run_evaluation_no_plots.py`](run_evaluation_no_plots.py)**:
+    - 在 `run_experiment` 函数内，针对 `experiment_type == 'denoising_smoothing'` 的条件分支中，添加了 `config.APPLY_SMOOTHING = True`。这确保了在进行去噪平滑评估时，数据预处理流程能够正确地应用指定的平滑方法和系数。
+---
+### Decision (Code)
+[2025-06-15 02:24:55] - 在 'denoising_smoothing' 实验中为所有数据分割启用平滑处理
+
+**Rationale:**
+根据 `spec-pseudocode` 的分析，之前的实现仅使用 `config.APPLY_SMOOTHING = True`，这可能不会在所有数据分割（训练、验证、测试）中一致地应用平滑。为了确保在 `denoising_smoothing` 实验类型中，平滑处理能按预期应用于所有数据分割，需要明确设置 `config.SMOOTHING_APPLY_TRAIN`、`config.SMOOTHING_APPLY_VAL` 和 `config.SMOOTHING_APPLY_TEST` 为 `True`。这确保了 `src/data_handler.py` 中数据平滑流程的正确激活。
+
+**Details:**
+- **[`run_evaluation_no_plots.py`](run_evaluation_no_plots.py:118-121)**:
+    - 在 `run_experiment` 函数中，当 `experiment_type` 为 `'denoising_smoothing'` 时，将原有的 `config.APPLY_SMOOTHING = True` 替换为以下三行：
+      ```python
+      config.SMOOTHING_APPLY_TRAIN = True
+      config.SMOOTHING_APPLY_VAL = True
+      config.SMOOTHING_APPLY_TEST = True
+      ```
+---
+### Decision (Code)
+[2025-06-15 02:40:05] - 重命名平滑相关变量
+
+**Rationale:**
+为了提高代码的可读性和清晰度，将 `SMOOTHING_FACTORS` 和 `smoothing_factor` 重命名为 `WEIGHT_SMOOTHING_FACTORS` 和 `weight_smoothing`。新的命名更准确地反映了这些变量在数据合成/平滑过程中作为“权重”的真实意图，避免了与通用“因子”的混淆。
+
+**Details:**
+- **[`src/config.py`](src/config.py)**:
+    - `self.SMOOTHING_FACTOR` 重命名为 `self.WEIGHT_SMOOTHING`。
+- **[`run_evaluation_no_plots.py`](run_evaluation_no_plots.py)**:
+    - 局部变量 `SMOOTHING_FACTORS` 重命名为 `WEIGHT_SMOOTHING_FACTORS`。
+    - `run_experiment` 函数的参数 `smoothing_factor` 重命名为 `weight_smoothing`。
+    - 所有相关的函数调用、变量赋值和日志记录都已相应更新。
+---
+### Decision (Debug)
+[2025-06-15 02:46:21] - 修复因不完整的重构导致的 `smooth_data` `ValueError`
+
+**Rationale:**
+`smooth_data` 函数在 `moving_average` 模式下期望 `smoothing_factor` 是一个整数（窗口大小），但由于之前将 `smoothing_factor` 重命名为 `weight_smoothing` 的重构不完整，导致它收到了一个浮点数。修复措施是恢复一个专门用于窗口大小的配置，并更新函数调用以使用正确的参数。
+
+**Details:**
+- **[`src/config.py`](src/config.py)**:
+    - 在 `Config` 类中添加了 `self.SMOOTHING_WINDOW_SIZE = 24`，以重新引入一个专门用于移动平均窗口大小的配置。
+- **[`src/data_handler.py`](src/data_handler.py)**:
+    - 在 `load_and_preprocess_data` 函数中，所有对 `smooth_data` 的调用都被修改。
+    - `smoothing_factor` 参数现在传递 `cfg.SMOOTHING_WINDOW_SIZE`。
+    - `weight_smoothing` 参数现在传递 `cfg.WEIGHT_SMOOTHING`。
+- **[`run_evaluation_no_plots.py`](run_evaluation_no_plots.py)**:
+    - 更新了日志消息，以正确反映 `weight_smoothing` 而不是 `factor`，从而消除混淆。
