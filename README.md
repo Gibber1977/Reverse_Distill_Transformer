@@ -54,17 +54,14 @@ update:2025/05/27
 ```
 rdt_framework/
 │
-├── main.py             # 项目入口，执行端到端实验流程
+├── run_evaluation_no_plots.py # 运行评估实验的脚本 (无绘图)
 ├── requirements.txt    # 项目依赖列表
 ├── README.md           # 本文档
 │
 ├── data/               # 存放原始时间序列数据集
-│   └── weatherHistory.csv  # 示例数据集 (请替换为您的数据)
+│   └── weather.csv     # 示例数据集
 │
 ├── results/            # 存放实验输出 (自动生成)
-│   ├── metrics/        # 评估指标 CSV 文件
-│   ├── models/         # 训练好的模型权重 (.pt)
-│   └── plots/          # 生成的图表 (.png)
 │
 └── src/                # 源代码目录
     ├── __init__.py     # 使 src 可作为 Python 包导入
@@ -74,7 +71,8 @@ rdt_framework/
     ├── trainer.py      # 训练器实现 (RDT, Standard, EarlyStopping)
     ├── schedulers.py   # Alpha 调度器实现
     ├── evaluator.py    # 模型评估、指标计算、鲁棒性测试
-    └── utils.py        # 辅助函数 (种子设置、绘图、保存加载等)
+    ├── run_experiment.py # 核心实验运行函数
+    └── utils.py        # 辅助函数 (种子设置、日志、保存加载等)
 ```
 
 ## 4. 快速开始 (Getting Started)
@@ -132,10 +130,10 @@ rdt_framework/
 
 ### 4.4 运行实验
 
-在项目根目录下执行主脚本 `main.py`：
+在项目根目录下执行实验脚本，例如 `run_evaluation_no_plots.py`：
 
 ```bash
-python main.py
+python run_evaluation_no_plots.py
 ```
 
 脚本将按照 `config.py` 中的设置，依次执行数据加载、教师模型训练、基线学生模型训练、RDT 学生模型训练、模型评估（包括鲁棒性测试）、结果保存和图表生成等步骤。如果 `STABILITY_RUNS` 大于 1，整个过程将重复执行指定次数以进行稳定性分析。

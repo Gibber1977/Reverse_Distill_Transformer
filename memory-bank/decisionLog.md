@@ -665,3 +665,19 @@ The original implementation saved all models from different experiment runs into
         - 模型角色 (`Teacher`, `TaskOnly`, `Follower`, `RDT`)
         - 实验特定参数，如噪音水平 (`noise_level`) 或平滑权重 (`weight_smoothing`)。
     - 这确保了在同一次实验运行中，由不同参数组合生成的每个模型都保存为唯一的文件，从而避免了文件覆盖问题。
+---
+### Decision (Code)
+[2025-06-15 22:59:25] - 将 `run_experiment` 函数重构到新模块
+
+**Rationale:**
+为了提高代码的模块化程度和可复用性，将核心的实验运行逻辑 `run_experiment` 函数及其所有依赖项从主脚本 `run_evaluation_no_plots.py` 中提取出来，放入一个新的专用模块 `src/run_experiment.py`。这使得实验逻辑与主脚本的实验配置和循环逻辑分离，使代码结构更清晰，也便于在其他实验脚本中复用 `run_experiment` 函数。
+
+**Details:**
+- **[`src/run_experiment.py`](src/run_experiment.py)**:
+    - 创建了新文件。
+    - 包含了 `run_experiment` 函数的完整定义。
+    - 包含了所有必要的 `import` 语句，如 `os`, `torch`, `numpy`, 以及来自 `src` 目录的各个模块。
+- **[`run_evaluation_no_plots.py`](run_evaluation_no_plots.py)**:
+    - 删除了 `run_experiment` 函数的本地定义。
+    - 移除了不再直接需要的 `import` 语句（例如 `torch`, `numpy`, `src.models`, `src.trainer` 等）。
+    - 添加了 `from src.run_experiment import run_experiment` 来导入重构后的函数。

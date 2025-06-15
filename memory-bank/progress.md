@@ -127,3 +127,4 @@ This file tracks the project's progress using a task list format.
 * [2025-06-15 02:47:06] - [Debugging Task Status Update] 完成了对 `smooth_data` 函数 `ValueError` 的修复。
 * [2025-06-15 19:42:04] - 完成对 `run_evaluation_no_plots.py` 的修改，通过引入 `results_dir` 参数解决了模型保存路径冲突和覆盖的问题。
 * [2025-06-15 19:58:22] - 完成对 `run_evaluation_no_plots.py` 的修改，通过实现详细的模型命名约定，解决了因通用文件名导致模型相互覆盖的问题。
+* [2025-06-15 22:59:48] - 完成了将 `run_experiment` 函数重构到 `src/run_experiment.py` 的任务。

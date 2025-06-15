@@ -30,7 +30,7 @@ def setup_logging(log_file_path, log_level_str='INFO'):
         logger.removeHandler(handler)
 
     # 文件处理器
-    file_handler = logging.FileHandler(log_file_path)
+    file_handler = logging.FileHandler(log_file_path, encoding='utf-8')
     file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
     logger.addHandler(file_handler)
 
