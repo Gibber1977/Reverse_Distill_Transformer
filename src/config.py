@@ -15,7 +15,7 @@ class Config:
         self.DATASET_PATH = os.path.join(self.DATA_DIR, 'national_illness.csv')
         self.DATE_COL = 'date'
         self.TARGET_COLS = ['OT']
-        self.EXOGENOUS_COLS = [] # 例如: ['0', '1', '2', '3', '4', '5', '6'] 或留空表示不使用额外协变量
+        self.EXOGENOUS_COLS = [] # 补充协变量列表。注意：代码会自动将数据中所有非目标、非日期的列识别为协变量。此列表仅用于添加额外的列（通常保持为空）。
         self.TIME_FREQ = 'h' # 默认值，将在实验脚本中动态设置
         self.TIME_ENCODING_TYPE = 'linear' # 'linear' or 'cyclic'
 

@@ -363,48 +363,57 @@ def load_and_preprocess_data(dataset_path, cfg, logger, time_freq):
         logger.error(f"Error: One or more target columns {cfg.TARGET_COLS} not found.")
         raise
 
-    df_exog = pd.DataFrame(index=df.index) # 初始化一个空的 DataFrame 来存放外生变量
-    if hasattr(cfg, 'EXOGENOUS_COLS') and cfg.EXOGENOUS_COLS: # 检查属性是否存在且不为空
-        try:
-            # 确保只选择数据帧中实际存在的列
-            existing_exog_cols = [col for col in cfg.EXOGENOUS_COLS if col in df.columns]
-            if not existing_exog_cols:
-                logger.warning(f"None of the specified EXOGENOUS_COLS {cfg.EXOGENOUS_COLS} found in the dataset. No exogenous features will be added.")
-            else:
-                df_exog = df[existing_exog_cols]
-                logger.info(f"Selected exogenous columns: {existing_exog_cols}")
-        except KeyError as e:
-            logger.error(f"Error selecting exogenous columns: {e}. Specified EXOGENOUS_COLS: {cfg.EXOGENOUS_COLS}")
-            # 根据需要决定是否抛出异常或继续（不带外生变量）
+    # --- 自动识别和合并协变量 ---
+    # 1. 识别所有非目标、非日期的列作为原始协变量
+    original_exog_cols = [col for col in df.columns if col not in cfg.TARGET_COLS and col != cfg.DATE_COL]
+    df_original_exog = df[original_exog_cols]
+    logger.info(f"Automatically identified original exogenous columns: {original_exog_cols}")
+
+    # 2. 处理在 config 中明确指定的 EXOGENOUS_COLS
+    df_specified_exog = pd.DataFrame(index=df.index)
+    if hasattr(cfg, 'EXOGENOUS_COLS') and cfg.EXOGENOUS_COLS:
+        existing_specified_cols = [col for col in cfg.EXOGENOUS_COLS if col in df.columns]
+        if existing_specified_cols:
+            df_specified_exog = df[existing_specified_cols]
+            logger.info(f"Selected specified exogenous columns from config: {existing_specified_cols}")
+        else:
+            logger.warning(f"None of the specified EXOGENOUS_COLS {cfg.EXOGENOUS_COLS} found in the dataset.")
+    
+    # 3. 合并所有协变量 (原始 + 指定的)，去重
+    df_exog = pd.concat([df_original_exog, df_specified_exog], axis=1)
+    df_exog = df_exog.loc[:,~df_exog.columns.duplicated()] # 去除重复的列
+    logger.info(f"Total exogenous columns to be used (before time features): {df_exog.columns.tolist()}")
+
 
     # --- 时间特征编码 ---
     dates = df[cfg.DATE_COL]
     time_features_data = None
-    if cfg.TIME_ENCODING_TYPE == 'linear':
-        logger.info(f"Applying linear time encoding with frequency: {time_freq}")
-        time_features_data = time_features(dates, freq=time_freq)
-    elif cfg.TIME_ENCODING_TYPE == 'cyclic':
-        logger.info(f"Applying cyclic time encoding with frequency: {time_freq}")
-        time_features_data = cyclic_time_features(dates, freq=time_freq)
+    if cfg.TIME_ENCODING_TYPE in ['linear', 'cyclic']:
+        logger.info(f"Applying {cfg.TIME_ENCODING_TYPE} time encoding with frequency: {time_freq}")
+        if cfg.TIME_ENCODING_TYPE == 'linear':
+            time_features_data = time_features(dates, freq=time_freq)
+        else:
+            time_features_data = cyclic_time_features(dates, freq=time_freq)
     else:
-        logger.warning(f"Unknown TIME_ENCODING_TYPE: {cfg.TIME_ENCODING_TYPE}. No time features will be added.")
+        logger.warning(f"Unknown or no TIME_ENCODING_TYPE specified: '{cfg.TIME_ENCODING_TYPE}'. No time features will be added.")
 
+    # --- 合并所有特征 ---
+    # 确保目标列始终在最前面
+    dfs_to_concat = [df_target]
+    
+    # 添加所有协变量
+    if not df_exog.empty:
+        dfs_to_concat.append(df_exog)
+        
+    # 添加时间特征
     if time_features_data is not None:
-        # 将时间特征转换为 DataFrame，并确保列名唯一
         time_feature_cols = [f'time_feature_{i}' for i in range(time_features_data.shape[1])]
         df_time_features = pd.DataFrame(time_features_data, index=df.index, columns=time_feature_cols)
-        
-        # 合并目标列、已选择的额外协变量列（如果存在）和时间特征列（如果存在）
-        # 确保目标列始终在最前面
-        dfs_to_concat = [df_target]
-        if not df_exog.empty:
-            dfs_to_concat.append(df_exog)
-        if time_features_data is not None: # 确保 df_time_features 已被创建
-            dfs_to_concat.append(df_time_features)
-        
-        df_processed = pd.concat(dfs_to_concat, axis=1)
-        logger.info(f"Data processed. New data shape: {df_processed.shape}")
-        logger.info(f"New data columns: {df_processed.columns.tolist()}")
+        dfs_to_concat.append(df_time_features)
+    
+    df_processed = pd.concat(dfs_to_concat, axis=1)
+    logger.info(f"Data processed. Final data shape: {df_processed.shape}")
+    logger.info(f"Final data columns: {df_processed.columns.tolist()}")
 
 
     # 处理缺失值 (简单填充，可以用更复杂的方法)
