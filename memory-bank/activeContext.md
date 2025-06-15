@@ -122,3 +122,5 @@ This file tracks the project's current status, including recent changes, current
 * [2025-06-03 17:33:39] - 修改 `src/evaluator.py` 中的 `evaluate_model` 函数，以正确处理模型输出特征数多于目标列的情况。
 * [2025-06-15 02:16:39] - 修复了 `run_evaluation_no_plots.py` 中平滑功能未生效的问题，通过在 'denoising_smoothing' 实验中设置 `config.APPLY_SMOOTHING = True` 来激活平滑处理。
 * [2025-06-15 02:46:46] - [Debug Status Update: Fix Confirmed] 修复了 `smooth_data` 函数中的 `ValueError`。通过在 `src/config.py` 中恢复 `SMOOTHING_WINDOW_SIZE` 配置，并更新 `src/data_handler.py` 中对 `smooth_data` 的调用以使用正确的参数，解决了因不完整重构导致的问题。
+* [2025-06-15 19:41:53] - 修复了 `run_evaluation_no_plots.py` 中的模型保存路径冲突问题。通过为 `run_experiment` 函数添加 `results_dir` 参数，并更新所有模型保存路径和函数调用，确保每个实验的结果都保存在其唯一的带时间戳的目录中。
+* [2025-06-15 19:58:11] - 解决了模型文件名冲突问题。修改了 `run_evaluation_no_plots.py`，为模型文件名引入了更详细的命名约定，包含了数据集、预测长度、模型角色和实验参数，以防止在同一次运行中文件被覆盖。

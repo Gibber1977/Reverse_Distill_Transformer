@@ -125,3 +125,5 @@ This file tracks the project's progress using a task list format.
 - 2025-05-26 下午2:45:49 - 完成新功能文档 `docs/new_features.md` 的编写。
 * [2025-06-15 02:16:51] - 完成对 `run_evaluation_no_plots.py` 的修复，确保在 'denoising_smoothing' 实验中平滑化功能能够根据配置正确生效。
 * [2025-06-15 02:47:06] - [Debugging Task Status Update] 完成了对 `smooth_data` 函数 `ValueError` 的修复。
+* [2025-06-15 19:42:04] - 完成对 `run_evaluation_no_plots.py` 的修改，通过引入 `results_dir` 参数解决了模型保存路径冲突和覆盖的问题。
+* [2025-06-15 19:58:22] - 完成对 `run_evaluation_no_plots.py` 的修改，通过实现详细的模型命名约定，解决了因通用文件名导致模型相互覆盖的问题。

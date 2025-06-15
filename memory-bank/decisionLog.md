@@ -634,3 +634,34 @@ The original implementation saved all models from different experiment runs into
     - `weight_smoothing` 参数现在传递 `cfg.WEIGHT_SMOOTHING`。
 - **[`run_evaluation_no_plots.py`](run_evaluation_no_plots.py)**:
     - 更新了日志消息，以正确反映 `weight_smoothing` 而不是 `factor`，从而消除混淆。
+---
+### Decision (Code)
+[2025-06-15 19:41:37] - 修复 `run_evaluation_no_plots.py` 中的模型保存路径冲突问题。
+
+**Rationale:**
+原版本的 `run_evaluation_no_plots.py` 将所有模型保存在由 `config.py` 定义的全局 `RESULTS_DIR` 中。这会导致在执行多个实验（例如，不同的数据集或参数组合）时，后一个实验的模型会覆盖前一个实验的模型文件。为了确保每个实验的结果和模型都独立保存，需要为每次实验运行创建一个唯一的目录，并将该目录路径传递给核心实验函数。
+
+**Details:**
+- **[`run_evaluation_no_plots.py`](run_evaluation_no_plots.py)**:
+    - 修改了 `run_experiment` 函数的签名，增加了一个新的必需参数 `results_dir`。
+    - 在 `run_experiment` 函数内部，所有 `model_save_path` 的构建都从使用全局的 `config.RESULTS_DIR` 改为使用传入的 `results_dir` 参数。这影响了教师模型、TaskOnly模型、Follower模型和RDT模型的保存路径。
+    - 在 `main` 函数中，创建了一个带时间戳的唯一目录 `results_dir`。
+    - 更新了 `main` 函数中所有对 `run_experiment` 的调用，将这个唯一的 `results_dir` 路径传递给它。
+---
+### Decision (Code)
+[2025-06-15 19:57:56] - 优化 `run_evaluation_no_plots.py` 中的模型文件名以防止覆盖
+
+**Rationale:**
+用户指出，尽管实验结果保存在唯一的带时间戳的目录中，但目录内的模型文件名（如 `PatchTST_rdt_model.pt`）仍然是通用的。这会导致在单次运行中，不同实验条件（如不同数据集、预测长度、噪音水平）的模型文件相互覆盖。为了解决这个问题，需要实现一个更详细、更具描述性的模型命名约定。
+
+**Details:**
+- **[`run_evaluation_no_plots.py`](run_evaluation_no_plots.py)**:
+    - 在 `run_experiment` 函数内部，为每个模型角色（Teacher, TaskOnly, Follower, RDT）的模型保存路径构建逻辑进行了修改。
+    - 新的文件名格式为：`{dataset_name}_h{pred_horizon}_{base_model_name}_{role}_exp_{experiment_type}_params.pt`。
+    - 文件名现在会动态包含以下信息：
+        - 数据集名称 (`dataset_name`)
+        - 预测窗口长度 (`pred_horizon`)
+        - 模型基础名称 (例如 `DLinear`, `PatchTST`)
+        - 模型角色 (`Teacher`, `TaskOnly`, `Follower`, `RDT`)
+        - 实验特定参数，如噪音水平 (`noise_level`) 或平滑权重 (`weight_smoothing`)。
+    - 这确保了在同一次实验运行中，由不同参数组合生成的每个模型都保存为唯一的文件，从而避免了文件覆盖问题。

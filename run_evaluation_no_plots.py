@@ -15,19 +15,20 @@ from src.utils import set_seed, setup_logging, save_results_to_csv, save_experim
 
 # --- 快速测试实验配置 ---
 DATASETS = {
-    'exchange_rate': './data/exchange_rate.csv',
+    # 'exchange_rate': './data/exchange_rate.csv',
     # 'national_illness': './data/national_illness.csv',
-    # 'weather': './data/weather.csv',
-    # # 'ETTh1': './data/ETT-small/ETTh1.csv',
-    # # 'ETTh2': './data/ETT-small/ETTh2.csv',
-    # # 'ETTm1': './data/ETT-small/ETTm1.csv',
-    # # 'ETTm2': './data/ETT-small/ETTm2.csv',
+    'weather': './data/weather.csv',
+    # 'ETTh1': './data/ETT-small/ETTh1.csv',
+    # 'ETTh2': './data/ETT-small/ETTh2.csv',
+    # 'ETTm1': './data/ETT-small/ETTm1.csv',
+    # 'ETTm2': './data/ETT-small/ETTm2.csv',
     # 'PEMS_0':'./data/PEMS_0.csv'
 }
-# PREDICTION_HORIZONS = [336,720]
-PREDICTION_HORIZONS = [336]
+
+PREDICTION_HORIZONS = [336,720]
+# PREDICTION_HORIZONS = [336]
 LOOKBACK_WINDOW = 192
-EPOCHS = 3 # 减少epochs以加快测试
+EPOCHS = 50 # 减少epochs以加快测试
 STABILITY_RUNS = 1 # 减少运行次数
 
 # 模型组合: (Teacher, Student)
@@ -42,9 +43,10 @@ NOISE_LEVELS = []
 NOISE_TYPE = 'gaussian'
 
 # 去噪平滑评估配置 (减少平滑系数)
-# WEIGHT_SMOOTHING_FACTORS = [0.01,0.02,0.05,0.10,0.15,0.20]
-WEIGHT_SMOOTHING_FACTORS = [0.01,0.02]
+WEIGHT_SMOOTHING_FACTORS = [0.01,0.02,0.05,0.10,0.15,0.20]
+# WEIGHT_SMOOTHING_FACTORS = [0.01,0.02]
 SMOOTHING_METHOD = 'moving_average'
+
 
 # --- 主实验函数 (与 run_evaluation_experiments.py 相同，但使用快速测试配置) ---
 def run_experiment(
@@ -56,6 +58,7 @@ def run_experiment(
     stability_runs,
     teacher_model_name,
     student_model_name,
+    results_dir,  # 新增参数
     noise_level=0,
     noise_type=None,
     weight_smoothing=0,
@@ -105,7 +108,7 @@ def run_experiment(
         config.update_model_configs()
 
         # 确保结果目录存在
-        os.makedirs(config.RESULTS_DIR, exist_ok=True)
+        os.makedirs(results_dir, exist_ok=True)
         # Removed: os.makedirs(os.path.join(config.RESULTS_DIR, "plots"), exist_ok=True)
 
         # 根据实验类型调整数据处理
@@ -166,6 +169,17 @@ def run_experiment(
             teacher_model = get_model(teacher_model_name, config).to(device)
             # 训练 Teacher 模型
             logger.info(f"Training Teacher Model: {teacher_model_name}")
+            
+            # 构建模型文件名
+            teacher_model_filename_parts = [dataset_name, f"h{pred_horizon}", teacher_model_name, "Teacher"]
+            if experiment_type == 'noise_injection' and noise_level > 0:
+                teacher_model_filename_parts.append(f"noise{noise_level}")
+            elif experiment_type == 'denoising_smoothing' and weight_smoothing > 0:
+                teacher_model_filename_parts.append(f"smooth{weight_smoothing}")
+            teacher_model_filename = "_".join(map(str, teacher_model_filename_parts)) + ".pt"
+            teacher_model_save_path = os.path.join(results_dir, teacher_model_filename)
+            logger.info(f"Teacher model will be saved to: {teacher_model_save_path}")
+
             teacher_trainer = StandardTrainer(
                 model=teacher_model,
                 train_loader=train_loader,
@@ -175,7 +189,7 @@ def run_experiment(
                 device=config.DEVICE,
                 epochs=config.EPOCHS,
                 patience=config.PATIENCE,
-                model_save_path=os.path.join(config.RESULTS_DIR, f"{teacher_model_name}_teacher_model.pt"),
+                model_save_path=teacher_model_save_path,
                 scaler=scaler,
                 config_obj=config,
                 model_name=teacher_model_name
@@ -200,6 +214,17 @@ def run_experiment(
         current_student_model_task_only = get_model(student_model_name, config).to(device)
         if teacher_model is None:
             logger.info(f"Training TaskOnly Model (Student: {student_model_name}) as a standard student model.")
+            
+            # 构建模型文件名
+            task_only_standalone_filename_parts = [dataset_name, f"h{pred_horizon}", student_model_name, "TaskOnly", "Standalone"]
+            if experiment_type == 'noise_injection' and noise_level > 0:
+                task_only_standalone_filename_parts.append(f"noise{noise_level}")
+            elif experiment_type == 'denoising_smoothing' and weight_smoothing > 0:
+                task_only_standalone_filename_parts.append(f"smooth{weight_smoothing}")
+            task_only_standalone_filename = "_".join(map(str, task_only_standalone_filename_parts)) + ".pt"
+            task_only_standalone_save_path = os.path.join(results_dir, task_only_standalone_filename)
+            logger.info(f"TaskOnly (Standalone) model will be saved to: {task_only_standalone_save_path}")
+
             task_only_trainer = StandardTrainer(
                 model=current_student_model_task_only,
                 train_loader=train_loader,
@@ -209,7 +234,7 @@ def run_experiment(
                 device=config.DEVICE,
                 epochs=config.EPOCHS,
                 patience=config.PATIENCE,
-                model_save_path=os.path.join(config.RESULTS_DIR, f"{student_model_name}_task_only_standalone_model.pt"),
+                model_save_path=task_only_standalone_save_path,
                 scaler=scaler,
                 config_obj=config,
                 model_name=f"{student_model_name}_TaskOnly_Standalone"
@@ -225,6 +250,17 @@ def run_experiment(
             logger.info(f"Training TaskOnly Model (Student: {student_model_name}, alpha=1, with Teacher: {teacher_model_name})")
             config.ALPHA_SCHEDULE = 'constant'
             config.CONSTANT_ALPHA = 1.0
+            
+            # 构建模型文件名
+            task_only_filename_parts = [dataset_name, f"h{pred_horizon}", student_model_name, "TaskOnly"]
+            if experiment_type == 'noise_injection' and noise_level > 0:
+                task_only_filename_parts.append(f"noise{noise_level}")
+            elif experiment_type == 'denoising_smoothing' and weight_smoothing > 0:
+                task_only_filename_parts.append(f"smooth{weight_smoothing}")
+            task_only_filename = "_".join(map(str, task_only_filename_parts)) + ".pt"
+            task_only_save_path = os.path.join(results_dir, task_only_filename)
+            logger.info(f"TaskOnly model will be saved to: {task_only_save_path}")
+
             task_only_trainer = RDT_Trainer(
                 teacher_model=teacher_model, # This will be the trained teacher model
                 student_model=current_student_model_task_only,
@@ -237,7 +273,7 @@ def run_experiment(
                 device=config.DEVICE,
                 epochs=config.EPOCHS,
                 patience=config.PATIENCE,
-                model_save_path=os.path.join(config.RESULTS_DIR, f"{student_model_name}_task_only_model.pt"),
+                model_save_path=task_only_save_path,
                 scaler=scaler,
                 config_obj=config,
                 model_name=f"{student_model_name}_TaskOnly"
@@ -261,6 +297,17 @@ def run_experiment(
             logger.info(f"Training Follower Model (Student: {student_model_name}, alpha=0, with Teacher: {teacher_model_name})")
             config.ALPHA_SCHEDULE = 'constant'
             config.CONSTANT_ALPHA = 0.0
+            
+            # 构建模型文件名
+            follower_filename_parts = [dataset_name, f"h{pred_horizon}", student_model_name, "Follower"]
+            if experiment_type == 'noise_injection' and noise_level > 0:
+                follower_filename_parts.append(f"noise{noise_level}")
+            elif experiment_type == 'denoising_smoothing' and weight_smoothing > 0:
+                follower_filename_parts.append(f"smooth{weight_smoothing}")
+            follower_filename = "_".join(map(str, follower_filename_parts)) + ".pt"
+            follower_save_path = os.path.join(results_dir, follower_filename)
+            logger.info(f"Follower model will be saved to: {follower_save_path}")
+
             follower_trainer = RDT_Trainer(
                 teacher_model=teacher_model,
                 student_model=current_student_model_follower,
@@ -273,7 +320,7 @@ def run_experiment(
                 device=config.DEVICE,
                 epochs=config.EPOCHS,
                 patience=config.PATIENCE,
-                model_save_path=os.path.join(config.RESULTS_DIR, f"{student_model_name}_follower_model.pt"),
+                model_save_path=follower_save_path,
                 scaler=scaler,
                 config_obj=config,
                 model_name=f"{student_model_name}_Follower"
@@ -295,6 +342,17 @@ def run_experiment(
             logger.info(f"Training RDT Model (Student: {student_model_name}, dynamic alpha, with Teacher: {teacher_model_name})")
             config.ALPHA_SCHEDULE = 'linear' # Or other dynamic schedule
             config.CONSTANT_ALPHA = None # Ensure it's not overriding
+            
+            # 构建模型文件名
+            rdt_filename_parts = [dataset_name, f"h{pred_horizon}", student_model_name, "RDT"]
+            if experiment_type == 'noise_injection' and noise_level > 0:
+                rdt_filename_parts.append(f"noise{noise_level}")
+            elif experiment_type == 'denoising_smoothing' and weight_smoothing > 0:
+                rdt_filename_parts.append(f"smooth{weight_smoothing}")
+            rdt_filename = "_".join(map(str, rdt_filename_parts)) + ".pt"
+            rdt_save_path = os.path.join(results_dir, rdt_filename)
+            logger.info(f"RDT model will be saved to: {rdt_save_path}")
+
             rdt_trainer = RDT_Trainer(
                 teacher_model=teacher_model,
                 student_model=current_student_model_rdt,
@@ -307,7 +365,7 @@ def run_experiment(
                 device=config.DEVICE,
                 epochs=config.EPOCHS,
                 patience=config.PATIENCE,
-                model_save_path=os.path.join(config.RESULTS_DIR, f"{student_model_name}_rdt_model.pt"),
+                model_save_path=rdt_save_path,
                 scaler=scaler,
                 config_obj=config,
                 model_name=f"{student_model_name}_RDT"
@@ -415,7 +473,7 @@ def main():
                 logger.info("\n--- Running Standard Evaluation ---")
                 run_results, sim_results = run_experiment(
                     dataset_name, dataset_path, pred_horizon, LOOKBACK_WINDOW, EPOCHS, STABILITY_RUNS,
-                    teacher_model, student_model,
+                    teacher_model, student_model, results_dir,
                     experiment_type='standard', logger=logger
                 )
                 all_experiment_results.extend(run_results)
@@ -426,7 +484,7 @@ def main():
                 for noise_level in NOISE_LEVELS:
                     run_results, sim_results = run_experiment(
                         dataset_name, dataset_path, pred_horizon, LOOKBACK_WINDOW, EPOCHS, STABILITY_RUNS,
-                        teacher_model, student_model,
+                        teacher_model, student_model, results_dir,
                         noise_level=noise_level, noise_type=NOISE_TYPE,
                         experiment_type='noise_injection', logger=logger
                     )
@@ -438,7 +496,7 @@ def main():
                 for weight_smoothing in WEIGHT_SMOOTHING_FACTORS:
                     run_results, sim_results = run_experiment(
                         dataset_name, dataset_path, pred_horizon, LOOKBACK_WINDOW, EPOCHS, STABILITY_RUNS,
-                        teacher_model, student_model,
+                        teacher_model, student_model, results_dir,
                         weight_smoothing=weight_smoothing, smoothing_method=SMOOTHING_METHOD,
                         experiment_type='denoising_smoothing', logger=logger
                     )
