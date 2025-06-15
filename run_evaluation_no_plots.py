@@ -48,7 +48,7 @@ WEIGHT_SMOOTHING_FACTORS = [0.01,0.02,0.05,0.10,0.15,0.20]
 SMOOTHING_METHOD = 'moving_average'
 
 
-# --- 主实验函数 (与 run_evaluation_experiments.py 相同，但使用快速测试配置) ---
+# --- 主实验函数---
 def run_experiment(
     dataset_name,
     dataset_path,
