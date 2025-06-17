@@ -1,5 +1,5 @@
 # RDT 时间序列预测验证框架
-update:2025/05/27
+update:2025/06/17
 ## 1. 项目概览
 
 本项目提供一个基于 Python 和 PyTorch 的**时间序列预测验证框架**。其核心目标是为 **RDT (Reverse Distillation Training)** 方法在时间序列预测领域的应用提供一个**可复现、可扩展**的实验环境，以便系统性地验证其有效性。
@@ -170,20 +170,20 @@ python run_evaluation_no_plots.py
 
 ## 7. 实验输出
 
-运行 `main.py` 脚本后，所有结果将组织并保存在 `results/` 目录下。主要输出文件类型包括：
+运行 `run_evaluation_no_plots.py` 脚本后，所有结果将组织并保存在 `results/` 目录下。主要输出文件类型包括：
 
 *   **模型权重 (`results/models/`)**:
     *   `teacher_*.pt`: 训练好的教师模型权重。
     *   `student_*_task_only_*.pt`: Task-Only 学生模型权重。
     *   `student_*_rdt_*.pt`: RDT 学生模型权重。
     *   `student_*_follower_*.pt`: Follower 学生模型权重。
-*   **图表 (`results/plots/`)**:
+<!-- *   **图表 (`results/plots/`)**:
     *   训练损失曲线图（为不同训练模式生成）。
     *   Alpha 调度曲线图 (如果 Alpha 是动态的)。
     *   测试集预测对比图 (展示真实值与各模型的预测曲线)。
     *   性能指标对比图 (条形图对比各模型在测试集上的 MSE/MAE 等)。
     *   鲁棒性曲线图 (展示各模型在不同噪声水平下性能变化)。
-    *   稳定性分析图 (箱线图/小提琴图展示多次运行的指标分布)。
+    *   稳定性分析图 (箱线图/小提琴图展示多次运行的指标分布)。 -->
 *   **评估指标 (`results/metrics/`)**:
     *   实验总览 CSV 文件 (`{ExperimentName}_{Timestamp}.csv`)：包含每次运行的配置、模型路径和核心指标。
     *   鲁棒性详细结果 CSV 文件 (`{ModelName}_run*_robustness.csv`)：记录单一模型在不同噪声水平下的具体指标。
